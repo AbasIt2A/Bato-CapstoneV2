@@ -1,0 +1,10 @@
+# Secrets — never commit
+.env
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.env
+
+# OS / editor noise
+Thumbs.db
+.DS_Store

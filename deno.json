@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "test": "deno test --allow-read --allow-env tests/",
+    "test:live": "deno test --env-file=.env --allow-read --allow-env --allow-net tests/",
+    "check": "deno check supabase/functions/general-chat/index.ts scripts/ingest-knowledge.ts scripts/chunker.ts",
+    "ingest:dry": "deno run --allow-read scripts/ingest-knowledge.ts --dry-run",
+    "ingest": "deno run --env-file=.env --allow-read --allow-env --allow-net scripts/ingest-knowledge.ts"
+  }
+}
