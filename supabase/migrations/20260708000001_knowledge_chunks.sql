@@ -116,6 +116,9 @@ returns table (
 )
 language sql
 stable
+-- Explicit even though it matches the Postgres default: pins the property
+-- so it survives future edits instead of relying on an implicit default.
+security invoker
 -- Pin the search path: the <=> operator lives in the extensions schema,
 -- which is not on the default migration/caller search_path.
 set search_path = ''

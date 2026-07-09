@@ -107,3 +107,87 @@ Deno.test("checkDraftAnswer: a case-variant delimiter token is still unsafe (L2 
   );
   assertEquals(result.safe, false);
 });
+
+// ---------------------------------------------------------------------------
+// Groundedness/citation check against retrievedSourceIds (heuristic #4)
+// ---------------------------------------------------------------------------
+
+Deno.test("checkDraftAnswer: a fluent on-topic answer citing no source is unsafe (ungrounded)", () => {
+  const result = checkDraftAnswer(
+    "Chronic kidney disease progresses through five stages based on how well " +
+      "your kidneys filter blood, and catching it early can slow the damage.",
+    FIXTURE_SYSTEM_PROMPT,
+    ["NIDDK", "KDIGO"],
+  );
+  assertEquals(result.safe, false);
+});
+
+Deno.test("checkDraftAnswer: citing the short source ID (NIDDK) grounds the answer", () => {
+  const result = checkDraftAnswer(
+    "Kidneys filter waste from your blood (NIDDK).",
+    FIXTURE_SYSTEM_PROMPT,
+    ["NIDDK"],
+  );
+  assertEquals(result.safe, true, `expected safe, got: ${result.reason}`);
+});
+
+Deno.test("checkDraftAnswer: citing the full display name (case-insensitive) grounds the answer", () => {
+  const result = checkDraftAnswer(
+    "According to the national institute of diabetes and digestive and " +
+      "kidney diseases, CKD stages are based on GFR.",
+    FIXTURE_SYSTEM_PROMPT,
+    ["NIDDK"],
+  );
+  assertEquals(result.safe, true, `expected safe, got: ${result.reason}`);
+});
+
+Deno.test("checkDraftAnswer: citing WHO when only NIDDK was retrieved this turn is unsafe (scoped to retrievedSourceIds, not the full approved list)", () => {
+  const result = checkDraftAnswer(
+    "According to WHO, kidney disease is a growing global health concern.",
+    FIXTURE_SYSTEM_PROMPT,
+    ["NIDDK"],
+  );
+  assertEquals(
+    result.safe,
+    false,
+    "citing a source that was not retrieved for this request must still be treated as ungrounded",
+  );
+});
+
+Deno.test("checkDraftAnswer: the standard deflection message is always safe, regardless of retrievedSourceIds", () => {
+  const withSource = checkDraftAnswer(DEFLECTION_MESSAGE, FIXTURE_SYSTEM_PROMPT, ["NIDDK"]);
+  assertEquals(withSource.safe, true, `expected safe, got: ${withSource.reason}`);
+
+  const withNoSources = checkDraftAnswer(DEFLECTION_MESSAGE, FIXTURE_SYSTEM_PROMPT, []);
+  assertEquals(withNoSources.safe, true, `expected safe, got: ${withNoSources.reason}`);
+});
+
+Deno.test("checkDraftAnswer: an empty draft is treated as safe (citation check does not apply to empty output)", () => {
+  const result = checkDraftAnswer("", FIXTURE_SYSTEM_PROMPT, ["NIDDK"]);
+  assertEquals(
+    result.safe,
+    true,
+    `expected safe — an empty draft short-circuits the citation check, got: ${result.reason}`,
+  );
+});
+
+Deno.test("checkDraftAnswer: 2-arg call defaults retrievedSourceIds to the full approved source list", () => {
+  const result = checkDraftAnswer(
+    "According to KDIGO, CKD staging depends on GFR and albuminuria levels.",
+    FIXTURE_SYSTEM_PROMPT,
+  );
+  assertEquals(result.safe, true, `expected safe, got: ${result.reason}`);
+});
+
+Deno.test("checkDraftAnswer: a lowercase pronoun 'who' does not false-match the WHO source ID (case-sensitive short-ID rule)", () => {
+  const result = checkDraftAnswer(
+    "I'm not sure who told you that, but kidneys filter waste from the blood every day.",
+    FIXTURE_SYSTEM_PROMPT,
+    ["WHO"],
+  );
+  assertEquals(
+    result.safe,
+    false,
+    "the lowercase pronoun 'who' must not be mistaken for a citation of the WHO source",
+  );
+});

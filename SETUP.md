@@ -122,8 +122,8 @@ already open when Deno was installed, it is still using the old PATH. Two fixes:
 deno task test
 ```
 
-Expected: **60 passed, 8 ignored**. The 8 ignored ones are live tests that need
-a real database — they run later in Step 9. The 60 offline tests cover the
+Expected: **68 passed, 8 ignored**. The 8 ignored ones are live tests that need
+a real database — they run later in Step 9. The 68 offline tests cover the
 prompt-injection battery, scope deflection, the rerank fallback, chunking rules,
 the approved-sources whitelist, and the output guard — all without any network.
 
@@ -326,7 +326,7 @@ deno task test:live
 
 This runs the same suite as Step 1, but with your `.env` loaded and network
 access allowed — so the 8 previously-ignored tests now run too, checking real
-retrieval relevance against your live database. Expected: **68 passed**.
+retrieval relevance against your live database. Expected: **76 passed**.
 
 ---
 

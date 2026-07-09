@@ -14,6 +14,10 @@
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
+/** Hard cap on the embedding round-trip before failing (see gate.ts's
+ *  GATE_TIMEOUT_MS / rerank.ts's RERANK_TIMEOUT_MS for the same pattern). */
+export const EMBEDDING_TIMEOUT_MS = 10000;
+
 export const EMBEDDING_MODEL = "gemini-embedding-001";
 
 /** Requested output dimension. MUST match knowledge_chunks.embedding
@@ -52,6 +56,7 @@ export async function embedText(options: {
         "x-goog-api-key": apiKey,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(EMBEDDING_TIMEOUT_MS),
     });
 
   let response = await request();

@@ -15,6 +15,10 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 /** Generation model; override with the GEMINI_MODEL env var. */
 export const GENERATION_MODEL_DEFAULT = "gemini-2.5-flash";
 
+/** Hard cap on the generation round-trip before failing (see gate.ts's
+ *  GATE_TIMEOUT_MS / rerank.ts's RERANK_TIMEOUT_MS for the same pattern). */
+export const GENERATION_TIMEOUT_MS = 15000;
+
 export async function generateReply(options: {
   /** The ONLY trusted instruction region. */
   systemPrompt: string;
@@ -41,6 +45,7 @@ export async function generateReply(options: {
           maxOutputTokens: options.maxOutputTokens ?? 1024,
         },
       }),
+      signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
     });
 
   let response = await request();

@@ -136,8 +136,14 @@ Deno.serve(async (req) => {
       return deflect();
     }
 
-    // (6) Output safety check — cheap heuristics, no model call.
-    const guard = checkDraftAnswer(draft, GENERAL_CHAT_SYSTEM_PROMPT);
+    // (6) Output safety check — cheap heuristics, no model call. Pass this
+    // request's actually-retrieved sources so the groundedness/citation
+    // check judges the draft against what the generator was actually given.
+    const guard = checkDraftAnswer(
+      draft,
+      GENERAL_CHAT_SYSTEM_PROMPT,
+      reranked.map((c) => c.source),
+    );
     if (!guard.safe) {
       console.warn("general-chat: output guard blocked reply:", guard.reason);
       return deflect();
