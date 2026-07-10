@@ -5,6 +5,10 @@
 supabase/.temp/
 supabase/.env
 
+# Frontend build artifacts
+node_modules/
+frontend/dist/
+
 # OS / editor noise
 Thumbs.db
 .DS_Store

@@ -62,6 +62,7 @@ keeps the bot on-topic and makes it much harder to trick.
 | `supabase/functions/general-chat/` | The chatbot Edge Function (the pipeline above) |
 | `supabase/functions/_shared/` | Building blocks: gate, embeddings, retrieval, rerank, prompts, output guard |
 | `tests/` | Deno test suite: injection battery, deflection, rerank fallback, chunker, and more |
+| `frontend/` | The web app (Vite + React): home screen with both chatbots — Risk Assessment (capstone backend) and General CKD chat (this project's backend) |
 | `docs/manuscript-alignment.md` | Plain-language summary for your capstone manuscript |
 | `.env` | Your secret keys (already partly filled in — never commit this file) |
 | `deno.json` | The `deno task ...` shortcuts used throughout this guide |
@@ -330,7 +331,44 @@ retrieval relevance against your live database. Expected: **76 passed**.
 
 ---
 
-## 14. Troubleshooting
+## 14. Step 10: run the frontend
+
+This project has its own web app in `frontend/` (do not confuse it with the
+capstone's frontend in `E:\BATO Capstone\frontend` — that one belongs to the
+old project). Like the capstone app, its home screen offers both chatbots:
+
+- **Check my CKD risk** (`/assessment`) — the SCORED Risk Assessment. The
+  screening state machine, scoring rules, and clarification assistant still
+  run on the **original capstone Supabase project's** deployed `screening`
+  and `clarify` functions; this frontend calls them as-is (anonymous
+  sign-in, consent gate first). Nothing about the scoring was copied or
+  reimplemented here.
+- **Ask about kidney health** (`/chat`) — the hardened General CKD chatbot,
+  backed by THIS project's `general-chat` function.
+
+One-time setup (already done if `frontend/.env` exists): copy
+`frontend/.env.example` to `frontend/.env` and fill in all four values —
+`VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` from this project's
+**Project Settings → Data API**, and `VITE_ASSESSMENT_SUPABASE_URL` +
+`VITE_ASSESSMENT_SUPABASE_PUBLISHABLE_KEY` from the capstone project's same
+page. Then:
+
+```powershell
+cd "E:\BATO CHATBOT V2\frontend"
+npm install    # first time only
+npm run dev
+```
+
+Open **http://localhost:5173** in your browser. The port matters: the
+deployed function's `ALLOWED_ORIGIN` secret is pinned to
+`http://localhost:5173`, and the dev server is configured with `strictPort`
+so it fails loudly instead of silently moving to another port (which would
+break CORS). If you later host this frontend publicly, update the secret to
+the public URL and redeploy (see Step 7).
+
+---
+
+## 15. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -343,7 +381,7 @@ retrieval relevance against your live database. Expected: **76 passed**.
 
 ---
 
-## 15. Glossary
+## 16. Glossary
 
 - **RAG** — Retrieval-Augmented Generation: retrieve trusted text first, then generate the answer only from it.
 - **Embedding** — a list of numbers representing a text's meaning, made by an AI model.
