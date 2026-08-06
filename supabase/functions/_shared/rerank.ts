@@ -1,36 +1,52 @@
-// Cross-encoder reranking stage for the General CKD Chatbot's retrieval
-// pipeline (hardened-RAG spec §3, §12 step 3).
+// Cross-encoder reranking stage for the shared retrieval pipeline
+// (hardened-RAG spec §3, §12 step 3).
 //
 // The vector stage (retrieval.ts) over-fetches a wide candidate pool at a
 // low similarity floor; THIS stage is the actual relevance gate. It scores
 // each candidate against the user's question with Cohere Rerank v3.5 and
-// keeps only candidates whose relevance_score clears RERANK_THRESHOLD,
-// capped at RERANK_TOP_N.
+// keeps only candidates whose relevance_score clears the scope's rerank
+// threshold, capped at the scope's top-N.
 //
 // Degradation, never failure: if COHERE_API_KEY is unset or the Cohere call
 // fails/times out, we fall back to cosine-similarity ordering — keep chunks
-// at or above FALLBACK_SIMILARITY_THRESHOLD, best first, same top-N cap —
-// and log a warning. rerankChunks never throws.
+// at or above the scope's fallback floor, best first, same top-N cap — and
+// log a warning. rerankChunks never throws.
 //
-// Used ONLY by the general-chat Edge Function.
+// Shared by BOTH chatbots. Thresholds are per-scope (scopes.ts): the
+// screening-clarification path runs stricter than general education.
 
 import type { RetrievedChunk } from "./retrieval.ts";
-
-/** Max chunks that survive reranking and reach the generation context. */
-export const RERANK_TOP_N = 4;
+import {
+  type RetrievalScope,
+  scopeProfile,
+  SCOPE_PROFILES,
+  type ScopeProfile,
+} from "./scopes.ts";
 
 /**
- * Minimum Cohere relevance_score (0..1) a candidate must reach. Overridable
- * via the RERANK_THRESHOLD env var for tuning without a redeploy of code.
+ * Max chunks that survive reranking on the general-education path.
+ * @deprecated Read `scopeProfile(scope).rerankTopN` instead — retained
+ * because the existing test suite asserts against it.
  */
-export const RERANK_THRESHOLD = envNumber("RERANK_THRESHOLD", 0.30);
+export const RERANK_TOP_N = SCOPE_PROFILES.general_education.rerankTopN;
+
+/**
+ * Minimum Cohere relevance_score (0..1) a general-education candidate must
+ * reach. Overridable via the RERANK_THRESHOLD env var for tuning without a
+ * redeploy of code.
+ * @deprecated Read `scopeProfile(scope).rerankThreshold` instead.
+ */
+export const RERANK_THRESHOLD =
+  SCOPE_PROFILES.general_education.rerankThreshold;
 
 /**
  * Cosine-similarity floor used ONLY in the degraded (no-reranker) path.
  * Matches the empirically tuned band split for gemini-embedding-001:
  * evergreen CKD questions score ~0.60-0.64, off-topic ~0.43-0.45.
+ * @deprecated Read `scopeProfile(scope).fallbackSimilarity` instead.
  */
-export const FALLBACK_SIMILARITY_THRESHOLD = 0.60;
+export const FALLBACK_SIMILARITY_THRESHOLD =
+  SCOPE_PROFILES.general_education.fallbackSimilarity;
 
 export const RERANK_MODEL = "rerank-v3.5";
 
@@ -44,16 +60,6 @@ export interface RerankedChunk extends RetrievedChunk {
   rerank_score?: number;
 }
 
-function envNumber(name: string, fallback: number): number {
-  try {
-    const raw = Deno.env.get(name);
-    const n = raw === undefined ? NaN : Number(raw);
-    return Number.isFinite(n) ? n : fallback;
-  } catch {
-    return fallback; // no env permission (offline tests)
-  }
-}
-
 /** Text Cohere scores for a chunk: section heading (when known) + content. */
 function rerankDocument(chunk: RetrievedChunk): string {
   const heading = chunk.heading_path?.trim() || chunk.title?.trim() || "";
@@ -61,23 +67,31 @@ function rerankDocument(chunk: RetrievedChunk): string {
 }
 
 /** Degraded path: cosine-similarity ordering with a stricter floor. */
-function fallbackBySimilarity(chunks: RetrievedChunk[]): RerankedChunk[] {
+function fallbackBySimilarity(
+  chunks: RetrievedChunk[],
+  profile: ScopeProfile,
+): RerankedChunk[] {
   return [...chunks]
-    .filter((c) => c.similarity >= FALLBACK_SIMILARITY_THRESHOLD)
+    .filter((c) => c.similarity >= profile.fallbackSimilarity)
     .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, RERANK_TOP_N);
+    .slice(0, profile.rerankTopN);
 }
 
 /**
- * Reranks vector-stage candidates against the user's question. Returns at
- * most RERANK_TOP_N chunks with relevance_score >= RERANK_THRESHOLD, most
- * relevant first. An empty result means nothing grounds this question and
- * the caller must deflect. Never throws.
+ * Reranks vector-stage candidates against the user's question, using the
+ * thresholds of `scope`. Returns at most that scope's top-N chunks clearing
+ * its rerank threshold, most relevant first. An empty result means nothing
+ * grounds this question and the caller must deflect. Never throws.
+ *
+ * `scope` defaults to general education so existing call sites and tests keep
+ * their behaviour unchanged; the clarify path passes its scope explicitly.
  */
 export async function rerankChunks(
   query: string,
   chunks: RetrievedChunk[],
+  scope: RetrievalScope = "general_education",
 ): Promise<RerankedChunk[]> {
+  const profile = scopeProfile(scope);
   if (chunks.length === 0) return [];
 
   let apiKey: string | undefined;
@@ -90,7 +104,7 @@ export async function rerankChunks(
     console.warn(
       "rerank: COHERE_API_KEY not set — degrading to cosine-similarity ordering",
     );
-    return fallbackBySimilarity(chunks);
+    return fallbackBySimilarity(chunks, profile);
   }
 
   try {
@@ -140,6 +154,6 @@ export async function rerankChunks(
       "rerank: Cohere call failed — degrading to cosine-similarity ordering:",
       err,
     );
-    return fallbackBySimilarity(chunks);
+    return fallbackBySimilarity(chunks, profile);
   }
 }

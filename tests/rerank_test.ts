@@ -22,6 +22,7 @@ function chunk(overrides: Partial<RetrievedChunk> & { id: string }): RetrievedCh
     title: "CKD basics",
     content: "Chronic kidney disease means the kidneys are damaged.",
     topic_tags: ["basics"],
+    scopes: ["general_education"],
     similarity: 0.5,
     heading_path: null,
     ...overrides,

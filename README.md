@@ -46,13 +46,14 @@ user message
 
 | Path | What it is |
 |---|---|
-| `supabase/migrations/` | pgvector + `knowledge_chunks` table + `match_knowledge_chunks` RPC (deny-by-default RLS) |
-| `knowledge/*.md` | Curated source documents (front-matter provenance + heading hierarchy). Approved sources only |
+| `supabase/migrations/` | pgvector + `knowledge_chunks` + `knowledge_sources` register + scope-filtered `match_knowledge_chunks` RPC (deny-by-default RLS) |
+| `knowledge/*.md` | Curated source documents (front-matter provenance, retrieval `scopes`, heading hierarchy). Approved sources only |
 | `knowledge/REVIEW-FLAGS.md` | Adviser-review ledger for diet/clinical-value content |
 | `scripts/chunker.ts` | Pure markdown-header chunker (H2 boundaries, H3 kept with parent, small overlap on long sections) |
 | `scripts/ingest-knowledge.ts` | One-time embed + insert script. **Checkpoint-gated — do not run without approval** |
-| `supabase/functions/general-chat/` | The Edge Function implementing the pipeline above |
-| `supabase/functions/_shared/` | gate, embeddings, retrieval, rerank, prompts, rag-content (trust delimiters), output-guard, sources whitelist |
+| `supabase/functions/general-chat/` | General CKD Chatbot — the pipeline above under the `general_education` scope |
+| `supabase/functions/clarify/` | LLM Clarification Engine — same pipeline under `screening_clarification`, stricter thresholds, no assessment write path |
+| `supabase/functions/_shared/` | gate, embeddings, retrieval, rerank, scopes (per-scope params), prompts, rag-content (trust delimiters), output-guard, sources register mirror |
 | `tests/` | Deno test suite: gate/injection battery, scope deflection, rerank fallback, delimiter integrity, output guard, chunker, sources, optional live retrieval-relevance |
 | `docs/manuscript-alignment.md` | Plain-language summary for the capstone manuscript (Phase 6) |
 

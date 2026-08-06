@@ -92,6 +92,10 @@ async function retrieveTopK(query: string): Promise<RetrievedChunk[]> {
         query_embedding: JSON.stringify(embedding),
         match_threshold: VECTOR_SIMILARITY_FLOOR,
         match_count: RETRIEVAL_TOP_K,
+        // match_scope is mandatory on the RPC. This battery exercises the
+        // General CKD Chatbot's corpus; the clarification scope has its own
+        // (stricter) parameters and belongs in its own battery.
+        match_scope: "general_education",
       }),
     },
   );
@@ -105,6 +109,7 @@ async function retrieveTopK(query: string): Promise<RetrievedChunk[]> {
     title: String(row.title ?? ""),
     content: String(row.content ?? ""),
     topic_tags: Array.isArray(row.topic_tags) ? (row.topic_tags as string[]) : [],
+    scopes: Array.isArray(row.scopes) ? (row.scopes as string[]) : [],
     similarity: typeof row.similarity === "number" ? row.similarity : 0,
     heading_path: typeof row.heading_path === "string" ? row.heading_path : null,
   }));

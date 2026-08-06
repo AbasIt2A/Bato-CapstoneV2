@@ -16,6 +16,7 @@ source: NIDDK
 title: CKD Basics
 approved: true
 last_updated: 2026-07-07
+scopes: [general_education]
 topic_tags: [basics, symptoms]
 ---
 
@@ -76,6 +77,7 @@ source: NIDDK
 title: CKD Basics
 approved: true
 last_updated: 2026-07-07
+scopes: [general_education]
 ---
 
 # CKD Basics
@@ -113,6 +115,7 @@ source: KDIGO
 title: Living with CKD
 approved: true
 last_updated: 2026-07-07
+scopes: [general_education]
 ---
 
 # Living with CKD
@@ -158,6 +161,7 @@ source: NIDDK
 title: Draft notes
 approved: false
 last_updated: 2026-07-07
+scopes: [general_education]
 ---
 
 # Draft notes
@@ -176,6 +180,7 @@ source: WebMD
 title: Some article
 approved: true
 last_updated: 2026-07-07
+scopes: [general_education]
 ---
 
 # Some article
@@ -193,6 +198,7 @@ const NO_SOURCE_DOC = `---
 title: Missing source
 approved: true
 last_updated: 2026-07-07
+scopes: [general_education]
 ---
 
 # Missing source
@@ -204,4 +210,71 @@ Some content.
 
 Deno.test("chunkMarkdownDocument: front-matter without a source throws", () => {
   assertThrows(() => chunkMarkdownDocument(NO_SOURCE_DOC));
+});
+
+// ---------------------------------------------------------------------------
+// Retrieval-scope validation
+//
+// Scope decides which chatbot may surface a passage, so it is required and
+// never defaulted. An untagged document must not quietly become general
+// education, and a typo must not quietly become nothing at all.
+// ---------------------------------------------------------------------------
+
+function docWithScopeLine(scopeLine: string): string {
+  return `---
+source: NIDDK
+title: Scope fixture
+approved: true
+last_updated: 2026-07-07
+${scopeLine}
+---
+
+# Scope fixture
+
+## Section
+
+Some content.
+`;
+}
+
+Deno.test("chunkMarkdownDocument: missing scopes throws rather than defaulting", () => {
+  assertThrows(
+    () => chunkMarkdownDocument(docWithScopeLine("topic_tags: [basics]")),
+    Error,
+    "scopes",
+  );
+});
+
+Deno.test("chunkMarkdownDocument: an empty scopes list throws", () => {
+  assertThrows(
+    () => chunkMarkdownDocument(docWithScopeLine("scopes: []")),
+    Error,
+    "scopes",
+  );
+});
+
+Deno.test("chunkMarkdownDocument: an unrecognised scope throws", () => {
+  assertThrows(
+    () => chunkMarkdownDocument(docWithScopeLine("scopes: [general_eduction]")),
+    Error,
+    "unrecognised scope",
+  );
+});
+
+Deno.test("chunkMarkdownDocument: a valid scope is carried onto every chunk", () => {
+  const chunks = chunkMarkdownDocument(
+    docWithScopeLine("scopes: [general_education, screening_clarification]"),
+  );
+  assertEquals(chunks.length, 1);
+  assertEquals(chunks[0].scopes, [
+    "general_education",
+    "screening_clarification",
+  ]);
+});
+
+Deno.test("chunkMarkdownDocument: duplicate scopes are de-duplicated", () => {
+  const chunks = chunkMarkdownDocument(
+    docWithScopeLine("scopes: [general_education, general_education]"),
+  );
+  assertEquals(chunks[0].scopes, ["general_education"]);
 });

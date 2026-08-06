@@ -4,6 +4,7 @@ citations: [KDIGO, NIDDK]
 title: Stages of CKD
 approved: true
 last_updated: 2026-07-08
+scopes: [general_education]
 topic_tags: [ckd, stages, egfr, albumin, kdigo]
 ---
 

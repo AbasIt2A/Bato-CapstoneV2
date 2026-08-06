@@ -35,7 +35,6 @@ export default function AssessmentChat() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const clarifySessionRef = useRef<string | null>(null);
   const startedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +50,6 @@ export default function AssessmentChat() {
     setFatalError(null);
     setResult(null);
     setTurns([]);
-    clarifySessionRef.current = null;
     try {
       const res = await startScreening();
       setAssessmentId(res.assessmentId);
@@ -74,22 +72,21 @@ export default function AssessmentChat() {
   }, [consented]);
 
   async function sendClarification(question: string) {
-    if (!assessmentId) return;
+    if (!assessmentId || !step) return;
     setBusy(true);
     setTurns((t) => [...t, { role: "user", text: question }]);
     try {
-      const res = await askClarification(
-        assessmentId,
-        question,
-        clarifySessionRef.current,
-      );
-      clarifySessionRef.current = res.sessionId;
+      // Only the question and the current variable's key travel to the
+      // clarification engine — never the assessment ID, and nothing comes
+      // back but prose. `step` is therefore re-displayed from local state
+      // rather than reassigned from the response: the controller resumes at
+      // the same variable because nothing was ever in a position to move it.
+      const res = await askClarification(question, step.key);
       setTurns((t) => [
         ...t,
         { role: "bot", text: res.reply },
-        { role: "bot", text: res.step.prompt },
+        { role: "bot", text: step.prompt },
       ]);
-      setStep(res.step);
     } catch (err) {
       setTurns((t) => [
         ...t,

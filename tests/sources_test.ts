@@ -8,10 +8,12 @@ import {
   isApprovedSource,
 } from "../supabase/functions/_shared/sources.ts";
 
-/** Exactly the 8 IDs the contract names — order-insensitive. */
+/** Exactly the 9 IDs the contract names — order-insensitive. */
 const EXPECTED_IDS = [
   "DOH",
   "PSN",
+  // Admitted 2026-08-06 to unblock Philippine mortality statistics.
+  "PSA",
   "WHO",
   "CDC",
   "NIDDK",
@@ -20,7 +22,7 @@ const EXPECTED_IDS = [
   "SCORED",
 ];
 
-Deno.test("APPROVED_SOURCE_IDS: exactly the approved 8, order-insensitive", () => {
+Deno.test("APPROVED_SOURCE_IDS: exactly the approved 9, order-insensitive", () => {
   const actualSorted = [...APPROVED_SOURCE_IDS].sort();
   const expectedSorted = [...EXPECTED_IDS].sort();
   assertEquals(actualSorted, expectedSorted);
@@ -30,7 +32,7 @@ Deno.test("APPROVED_SOURCE_IDS: no duplicates", () => {
   assertEquals(APPROVED_SOURCE_IDS.length, new Set(APPROVED_SOURCE_IDS).size);
 });
 
-Deno.test("isApprovedSource: true for every one of the approved 8", () => {
+Deno.test("isApprovedSource: true for every one of the approved 9", () => {
   for (const id of EXPECTED_IDS) {
     assertEquals(isApprovedSource(id), true, id);
   }

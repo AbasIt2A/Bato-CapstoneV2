@@ -4,6 +4,10 @@ citations: [NIDDK, CDC, KDIGO]
 title: Symptoms, Causes, and Complications of CKD
 approved: true
 last_updated: 2026-07-08
+# Dual-scoped: "What causes CKD" covers diabetes and high blood pressure,
+# two of the nine SCORED variables, so a user asking what they mean
+# mid-assessment needs this content too.
+scopes: [general_education, screening_clarification]
 topic_tags: [ckd, symptoms, causes, complications]
 ---
 

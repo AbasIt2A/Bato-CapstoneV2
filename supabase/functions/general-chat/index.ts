@@ -33,6 +33,14 @@ import {
   createServiceClient,
   jsonResponse,
 } from "../_shared/supabase.ts";
+import type { RetrievalScope } from "../_shared/scopes.ts";
+
+/**
+ * Hard-locked. Never taken from the request — the client cannot widen this
+ * chatbot's retrieval surface to the screening-clarification corpus. The RPC
+ * enforces it again server-side (see match_knowledge_chunks).
+ */
+const SCOPE: RetrievalScope = "general_education";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -105,7 +113,7 @@ Deno.serve(async (req) => {
     // candidate pool. Infrastructure failure here maps to a deflection.
     let candidates: RetrievedChunk[];
     try {
-      candidates = await retrieveChunks(supabase, message);
+      candidates = await retrieveChunks(supabase, message, SCOPE);
     } catch (err) {
       console.error("general-chat: retrieval failed — deflecting:", err);
       return deflect();
@@ -113,7 +121,7 @@ Deno.serve(async (req) => {
 
     // (4) Rerank to the top-N above the relevance threshold. Never throws;
     // an empty result means nothing grounds this question.
-    const reranked = await rerankChunks(message, candidates);
+    const reranked = await rerankChunks(message, candidates, SCOPE);
     if (reranked.length === 0) {
       console.warn(
         "general-chat: no chunks cleared the rerank threshold — deflecting",

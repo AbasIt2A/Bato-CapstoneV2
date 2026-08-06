@@ -20,6 +20,7 @@ function fakeChunk(overrides: Partial<RerankedChunk> & { id: string }): Reranked
     title: "CKD basics",
     content: "Chronic kidney disease means the kidneys are damaged.",
     topic_tags: ["basics"],
+    scopes: ["general_education"],
     similarity: 0.8,
     heading_path: "CKD Basics > What is CKD?",
     ...overrides,

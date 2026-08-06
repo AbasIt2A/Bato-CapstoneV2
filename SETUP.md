@@ -59,8 +59,9 @@ keeps the bot on-topic and makes it much harder to trick.
 | `scripts/chunker.ts` | Splits markdown into chunks along headings |
 | `scripts/ingest-knowledge.ts` | Embeds the chunks and inserts them into the database (⛔ gated) |
 | `supabase/migrations/` | SQL that creates the database table and search function (⛔ gated) |
-| `supabase/functions/general-chat/` | The chatbot Edge Function (the pipeline above) |
-| `supabase/functions/_shared/` | Building blocks: gate, embeddings, retrieval, rerank, prompts, output guard |
+| `supabase/functions/general-chat/` | General CKD Chatbot Edge Function (the pipeline above, `general_education` scope) |
+| `supabase/functions/clarify/` | LLM Clarification Engine Edge Function — same pipeline, `screening_clarification` scope, stricter thresholds |
+| `supabase/functions/_shared/` | Building blocks: gate, embeddings, retrieval, rerank, scopes, prompts, output guard |
 | `tests/` | Deno test suite: injection battery, deflection, rerank fallback, chunker, and more |
 | `frontend/` | The web app (Vite + React): home screen with both chatbots — Risk Assessment (capstone backend) and General CKD chat (this project's backend) |
 | `docs/manuscript-alignment.md` | Plain-language summary for your capstone manuscript |
@@ -260,7 +261,12 @@ development only). Then deploy:
 
 ```powershell
 npx supabase functions deploy general-chat
+npx supabase functions deploy clarify
 ```
+
+Both functions share the same secrets and the same `_shared/` code — they
+differ only in retrieval scope and thresholds. Deploy them together, or the
+Risk Assessment's clarification branch will 404 mid-assessment.
 
 ---
 
@@ -337,12 +343,18 @@ This project has its own web app in `frontend/` (do not confuse it with the
 capstone's frontend in `E:\BATO Capstone\frontend` — that one belongs to the
 old project). Like the capstone app, its home screen offers both chatbots:
 
-- **Check my CKD risk** (`/assessment`) — the SCORED Risk Assessment. The
-  screening state machine, scoring rules, and clarification assistant still
-  run on the **original capstone Supabase project's** deployed `screening`
-  and `clarify` functions; this frontend calls them as-is (anonymous
-  sign-in, consent gate first). Nothing about the scoring was copied or
-  reimplemented here.
+- **Check my CKD risk** (`/assessment`) — the SCORED Risk Assessment. It
+  talks to two backends on purpose:
+  - **Scoring** still runs on the **original capstone Supabase project's**
+    deployed `screening` function; this frontend calls it as-is (anonymous
+    sign-in, consent gate first). Nothing about the scoring was copied or
+    reimplemented here, and nothing should be — it is deterministic and
+    validated where it stands.
+  - **Clarification** ("what does proteinuria mean?") runs on **THIS**
+    project's `clarify` function, so both chatbots ground on one corpus,
+    one embedding model and one reranker, separated only by retrieval
+    scope. The clarification call carries no assessment ID and returns no
+    step or score, so it cannot touch a recorded SCORED answer.
 - **Ask about kidney health** (`/chat`) — the hardened General CKD chatbot,
   backed by THIS project's `general-chat` function.
 

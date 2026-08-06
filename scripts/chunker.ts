@@ -10,7 +10,7 @@
 // Contract (do not change the shape of these without updating every caller,
 // including the test suite):
 //   export interface MarkdownChunk { source, title, heading_path, content,
-//     topic_tags }
+//     topic_tags, scopes }
 //   export function chunkMarkdownDocument(markdown: string): MarkdownChunk[]
 //
 // Front-matter shape expected on every knowledge/*.md file (spec §6):
@@ -19,6 +19,7 @@
 //   title: CKD Basics
 //   approved: true
 //   last_updated: 2026-07-08
+//   scopes: [general_education]          # REQUIRED, non-empty
 //   topic_tags: [ckd, kidneys, basics]   # optional
 //   ---
 // Extra front-matter keys (e.g. `citations`) are parsed but ignored — they
@@ -44,6 +45,10 @@ import {
   APPROVED_SOURCE_IDS,
   isApprovedSource,
 } from "../supabase/functions/_shared/sources.ts";
+import {
+  isRetrievalScope,
+  RETRIEVAL_SCOPES,
+} from "../supabase/functions/_shared/scopes.ts";
 
 export interface MarkdownChunk {
   source: string;
@@ -51,6 +56,12 @@ export interface MarkdownChunk {
   heading_path: string;
   content: string;
   topic_tags: string[];
+  /**
+   * Retrieval scopes this document's chunks belong to. Required in
+   * front-matter and never defaulted: which chatbot may surface a passage is
+   * an editorial decision about the content, not something to infer.
+   */
+  scopes: string[];
 }
 
 /** Maximum raw-character length an H2 section may reach before it is split
@@ -219,6 +230,28 @@ export function chunkMarkdownDocument(markdown: string): MarkdownChunk[] {
     ? topicTagsRaw.filter((tag): tag is string => typeof tag === "string")
     : [];
 
+  // Scopes are mandatory. A missing value is not "general education by
+  // default" — an untagged document silently reaching the mid-assessment
+  // clarification path (or silently never reaching it) is precisely the
+  // failure the scope separation exists to prevent, so refuse instead.
+  const scopesRaw = frontMatter.scopes;
+  if (!Array.isArray(scopesRaw) || scopesRaw.length === 0) {
+    throw new Error(
+      `chunkMarkdownDocument: document "${title}" (source: ${source}) is ` +
+        "missing front-matter \"scopes\" — it must be a non-empty list " +
+        `drawn from [${RETRIEVAL_SCOPES.join(", ")}].`,
+    );
+  }
+  const invalidScopes = scopesRaw.filter((s) => !isRetrievalScope(s));
+  if (invalidScopes.length > 0) {
+    throw new Error(
+      `chunkMarkdownDocument: document "${title}" (source: ${source}) has ` +
+        `unrecognised scope(s) ${JSON.stringify(invalidScopes)}. Valid ` +
+        `scopes are [${RETRIEVAL_SCOPES.join(", ")}].`,
+    );
+  }
+  const scopes = [...new Set(scopesRaw as string[])];
+
   const headings = findHeadings(body);
   const h1 = headings.find((h) => h.level === 1);
   if (!h1) {
@@ -241,6 +274,7 @@ export function chunkMarkdownDocument(markdown: string): MarkdownChunk[] {
       heading_path: headingPath,
       content: trimmed,
       topic_tags: [...topicTags],
+      scopes: [...scopes],
     });
   };
 

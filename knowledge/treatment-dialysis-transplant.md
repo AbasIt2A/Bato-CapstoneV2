@@ -4,6 +4,7 @@ citations: [NIDDK, WHO, KDIGO, CDC]
 title: Treatment, Dialysis, and Transplant
 approved: true
 last_updated: 2026-07-08
+scopes: [general_education]
 topic_tags: [treatment, dialysis, transplant, kidney-failure, monitoring]
 ---
 

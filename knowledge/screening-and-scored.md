@@ -3,8 +3,20 @@ source: NIDDK
 citations: [NIDDK, KDIGO, SCORED, CDC, WHO]
 title: Screening and the SCORED Tool
 approved: true
-last_updated: 2026-07-08
-topic_tags: [screening, scored, risk-factors, egfr, proteinuria]
+last_updated: 2026-08-06
+# Dual-scoped: this is the definitional home of the nine SCORED variables
+# (one section per variable, below), which is exactly what the Clarification
+# Engine must be able to reach mid-assessment.
+#
+# STRUCTURE NOTE (2026-08-06): the nine risk factors were one H2 bullet list
+# until measurement showed no single term in it retrieved strongly enough to
+# clear the clarification floor — one 1429-char chunk covering nine distinct
+# terms dilutes every one of them. They are now one H2 section EACH. This
+# must stay H2: scripts/chunker.ts only splits at H3 when a section exceeds
+# 2500 characters, so H3 subsections here would collapse back into a single
+# chunk and silently undo the fix.
+scopes: [general_education, screening_clarification]
+topic_tags: [screening, scored, risk-factors, egfr, proteinuria, definitions]
 ---
 
 # Screening and the SCORED Tool
@@ -15,30 +27,58 @@ Because early CKD has no symptoms, the only way to know is through simple
 tests: a blood test (serum creatinine, used to estimate GFR) and a urine
 test (checking for protein/albumin) (NIDDK, KDIGO).
 
-## Main risk factors for CKD (these are what the SCORED questions ask about)
+## The nine risk factors the SCORED questions ask about
 
-- **Older age** — kidney function naturally declines with age; risk rises
-  from age 50 and is higher at 60 and 70+ (SCORED; Bang et al., 2007).
-- **Female sex** — in the SCORED study population, women had a slightly
-  higher chance of reduced kidney function.
-- **Anemia** — having too few healthy red blood cells. Damaged kidneys make
-  less of the hormone (erythropoietin) that tells the body to make red blood
-  cells, so anemia can be a sign of kidney trouble (NIDDK).
-- **High blood pressure (hypertension)** — over time, high pressure damages
-  the small blood vessels in the kidneys. It is one of the two leading causes
-  of CKD (CDC, WHO).
-- **Diabetes (high blood sugar)** — the other leading cause of CKD. High
-  sugar levels damage the kidneys' filtering units (CDC, NIDDK).
-- **Heart attack or stroke (cardiovascular disease)** — the heart, blood
-  vessels, and kidneys are closely connected; disease in one often signals
-  risk in the others (KDIGO).
-- **Heart failure (congestive heart failure)** — when the heart pumps
-  weakly, less blood reaches the kidneys, which strains them over time.
-- **Peripheral vascular disease** — poor circulation in the legs caused by
-  narrowed blood vessels; the same vessel damage can affect the kidneys.
-- **Protein in the urine (proteinuria)** — healthy kidneys keep protein in
-  the blood. Protein leaking into urine is an early warning sign of kidney
-  damage (NIDDK, KDIGO).
+The SCORED questionnaire asks about nine things: older age, female sex,
+anemia, high blood pressure, diabetes, heart attack or stroke, heart
+failure, peripheral vascular disease, and protein in the urine. Each one is
+explained in its own section below.
+
+## Older age and kidney risk
+
+Kidney function naturally declines with age; risk rises from age 50 and is
+higher at 60 and 70+ (SCORED; Bang et al., 2007).
+
+## Female sex and kidney risk
+
+In the SCORED study population, women had a slightly higher chance of
+reduced kidney function.
+
+## Anemia
+
+Anemia means having too few healthy red blood cells. Damaged kidneys make
+less of the hormone (erythropoietin) that tells the body to make red blood
+cells, so anemia can be a sign of kidney trouble (NIDDK).
+
+## High blood pressure (hypertension)
+
+Over time, high pressure damages the small blood vessels in the kidneys. It
+is one of the two leading causes of CKD (CDC, WHO).
+
+## Diabetes (high blood sugar)
+
+Diabetes is the other leading cause of CKD. High sugar levels damage the
+kidneys' filtering units (CDC, NIDDK).
+
+## Heart attack or stroke (cardiovascular disease)
+
+The heart, blood vessels, and kidneys are closely connected; disease in one
+often signals risk in the others (KDIGO).
+
+## Heart failure (congestive heart failure)
+
+When the heart pumps weakly, less blood reaches the kidneys, which strains
+them over time.
+
+## Peripheral vascular disease
+
+Peripheral vascular disease means poor circulation in the legs caused by
+narrowed blood vessels; the same vessel damage can affect the kidneys.
+
+## Protein in the urine (proteinuria)
+
+Healthy kidneys keep protein in the blood. Protein leaking into urine is an
+early warning sign of kidney damage (NIDDK, KDIGO).
 
 ## About the SCORED screening tool used by BATO
 
