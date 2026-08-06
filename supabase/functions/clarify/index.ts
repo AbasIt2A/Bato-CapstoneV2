@@ -201,6 +201,10 @@ Deno.serve(async (req) => {
       draft = await generateReply({
         systemPrompt: CLARIFICATION_SYSTEM_PROMPT,
         message: buildGroundedUserMessage(question, reranked),
+        // Deterministic: this is a definition lookup, not creative writing,
+        // and sampling variance here showed up as the engine refusing a
+        // valid screening question roughly one run in four.
+        temperature: 0,
       });
     } catch (err) {
       console.error("clarify: generation failed — deflecting:", err);

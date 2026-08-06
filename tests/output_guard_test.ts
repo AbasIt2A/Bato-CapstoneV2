@@ -217,3 +217,24 @@ Deno.test("checkDraftAnswer: a lowercase pronoun 'who' does not false-match the 
     "the lowercase pronoun 'who' must not be mistaken for a citation of the WHO source",
   );
 });
+
+Deno.test("checkDraftAnswer: the display name without its parenthetical still grounds the answer", () => {
+  // Regression, found live 2026-08-07: DOH is registered as "Department of
+  // Health (Philippines)", but a natural reply writes "according to the
+  // Department of Health". Requiring the full registered string rejected a
+  // correctly-attributed answer as ungrounded, so the PhilHealth question
+  // deflected on roughly 3 runs in 5 while citing DOH properly.
+  const draft =
+    "Yes, PhilHealth provides benefit packages that help cover the cost of " +
+    "dialysis, according to the Department of Health.";
+  const result = checkDraftAnswer(draft, FIXTURE_SYSTEM_PROMPT, ["DOH"]);
+  assertEquals(result.safe, true, `expected grounded, got: ${result.reason}`);
+});
+
+Deno.test("checkDraftAnswer: a bare parenthetical qualifier alone does not ground the answer", () => {
+  // "(Philippines)" must not become a citation by itself once parentheticals
+  // are stripped from the comparison.
+  const draft = "Dialysis is available in the Philippines for many patients.";
+  const result = checkDraftAnswer(draft, FIXTURE_SYSTEM_PROMPT, ["DOH"]);
+  assertEquals(result.safe, false);
+});

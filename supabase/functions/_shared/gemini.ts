@@ -53,12 +53,23 @@ export const GENERATION_TIMEOUT_MS = 15000;
  */
 const GENERATION_THINKING_LEVEL = "low";
 
+/** Sampling temperature when the caller does not specify one. */
+const DEFAULT_TEMPERATURE = 0.3;
+
 export async function generateReply(options: {
   /** The ONLY trusted instruction region. */
   systemPrompt: string;
   /** The single untrusted user turn (retrieved chunks + user question). */
   message: string;
   maxOutputTokens?: number;
+  /**
+   * Sampling temperature. Defaults to 0.3, which suits the General CKD
+   * Chatbot's free-form phrasing. The Clarification Engine passes 0: at 0.3
+   * it intermittently talked itself into declining a perfectly valid
+   * screening question (measured 1 refusal in 4 runs on the same input),
+   * which mid-assessment reads as the tool being broken.
+   */
+  temperature?: number;
 }): Promise<string> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
@@ -75,7 +86,7 @@ export async function generateReply(options: {
         system_instruction: { parts: [{ text: options.systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: options.message }] }],
         generationConfig: {
-          temperature: 0.3,
+          temperature: options.temperature ?? DEFAULT_TEMPERATURE,
           maxOutputTokens: options.maxOutputTokens ?? 1024,
           thinkingConfig: { thinkingLevel: GENERATION_THINKING_LEVEL },
         },
@@ -83,31 +94,47 @@ export async function generateReply(options: {
       signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
     });
 
-  let response = await request();
-  if (response.status === 429 || response.status >= 500) {
-    // One retry for transient overload (e.g. 503 "high demand").
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    response = await request();
+  // Two attempts. Retried on transient overload (429/5xx) AND on a 200 that
+  // carries no usable text — the model intermittently returns
+  // finishReason: MALFORMED_RESPONSE with empty parts. That is a successful
+  // HTTP call, so the old status-only retry ignored it and threw, and the
+  // Edge Functions turn a generation throw into the approved deflection.
+  // Measured on the clarification path before this retry existed: one
+  // spurious refusal in roughly every four identical requests, on both
+  // chatbots, with nothing in the reply to distinguish it from a real
+  // scope decision.
+  let lastFailure = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+
+    const response = await request();
+
+    if (response.status === 429 || response.status >= 500) {
+      lastFailure = `Gemini API error ${response.status}`;
+      continue;
+    }
+    if (!response.ok) {
+      // 4xx other than 429 is a request-shaped problem; retrying is futile.
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Gemini API error ${response.status}: ${detail}`);
+    }
+
+    const data = await response.json();
+    const text: unknown = data?.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p.text ?? "")
+      .join("")
+      .trim();
+
+    if (typeof text === "string" && text.length > 0) return text;
+
+    // Covers malformed responses, safety blocks and empty candidates
+    // without exposing internals.
+    lastFailure = `Gemini returned no text (finishReason: ${
+      data?.candidates?.[0]?.finishReason ?? "unknown"
+    })`;
   }
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Gemini API error ${response.status}: ${detail}`);
-  }
-
-  const data = await response.json();
-  const text: unknown = data?.candidates?.[0]?.content?.parts
-    ?.map((p: { text?: string }) => p.text ?? "")
-    .join("")
-    .trim();
-
-  if (typeof text !== "string" || text.length === 0) {
-    // Covers safety blocks and empty candidates without exposing internals.
-    throw new Error(
-      `Gemini returned no text (finishReason: ${
-        data?.candidates?.[0]?.finishReason ?? "unknown"
-      })`,
-    );
-  }
-  return text;
+  throw new Error(lastFailure);
 }

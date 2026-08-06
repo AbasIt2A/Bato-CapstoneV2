@@ -100,7 +100,22 @@ function citesAnySource(draft: string, sourceIds: readonly string[]): boolean {
   return sourceIds.some((id) => {
     if (draft.includes(id)) return true;
     const name = SOURCE_DISPLAY_NAMES[id];
-    return name ? draftLower.includes(name.toLowerCase()) : false;
+    if (!name) return false;
+    const nameLower = name.toLowerCase();
+    if (draftLower.includes(nameLower)) return true;
+
+    // Accept the display name without its parenthetical qualifier. Registered
+    // names carry disambiguators the prose form naturally drops — "Department
+    // of Health (Philippines)" is written "according to the Department of
+    // Health", and "Bang et al., 2007 (SCORED study...)" as "Bang et al.".
+    // Requiring the full registered string rejected correctly-attributed
+    // answers as ungrounded, which surfaced as the chatbot intermittently
+    // deflecting questions it had just answered correctly.
+    const withoutParenthetical = nameLower.replace(/\s*\([^)]*\)\s*/g, " ")
+      .trim();
+    return withoutParenthetical.length > 0 &&
+      withoutParenthetical !== nameLower &&
+      draftLower.includes(withoutParenthetical);
   });
 }
 
