@@ -1,11 +1,21 @@
-// Client for the Risk Assessment backend. The screening state machine, the
-// SCORED scoring rules, and the clarification assistant all live in the
-// ORIGINAL capstone Supabase project (deployed Edge Functions `screening`
-// and `clarify`) — this build reuses them as-is and never reimplements the
-// scoring. Auth mirrors the capstone frontend: an anonymous supabase-js
-// session, attached automatically to functions.invoke().
+// Client for the Risk Assessment backend, all of it in this project now:
+//
+//   `screening` — the SCORED state machine and deterministic scoring, ported
+//     from the original capstone project and reused as-is, never
+//     reimplemented. It owns the assessment and every recorded answer.
+//
+//   `clarify`  — the retrieval-grounded LLM Clarification Engine. It takes
+//     ONLY a question (plus an optional variableKey retrieval hint) and
+//     returns prose + citations. It deliberately receives no assessmentId
+//     and returns no step: it cannot read or write a SCORED variable, and
+//     THIS CLIENT keeps the current step and re-displays it after the aside.
+//     Do not "helpfully" pass assessment state to it — that would dismantle
+//     the structural guarantee the function is built around.
+//
+// Auth: an anonymous supabase-js session, attached automatically to
+// functions.invoke().
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { ensureSession, getSupabaseClient } from "./supabase-client";
 
 export interface StepPayload {
   index: number;
@@ -37,51 +47,21 @@ export interface AnswerResponse {
   result?: ScreeningResult;
 }
 
+export interface SourceCitation {
+  source: string;
+  title: string;
+  heading_path: string | null;
+}
+
 export interface ClarifyResponse {
-  sessionId: string;
   reply: string;
-  step: StepPayload;
-}
-
-const ASSESSMENT_URL = import.meta.env.VITE_ASSESSMENT_SUPABASE_URL as
-  | string
-  | undefined;
-const ASSESSMENT_KEY = import.meta.env.VITE_ASSESSMENT_SUPABASE_PUBLISHABLE_KEY as
-  | string
-  | undefined;
-
-let client: SupabaseClient | null = null;
-
-function getClient(): SupabaseClient {
-  if (!ASSESSMENT_URL || !ASSESSMENT_KEY) {
-    throw new Error(
-      "The Risk Assessment backend is not configured — fill in " +
-        "VITE_ASSESSMENT_SUPABASE_URL and VITE_ASSESSMENT_SUPABASE_PUBLISHABLE_KEY " +
-        "in frontend/.env (see frontend/.env.example).",
-    );
-  }
-  client ??= createClient(ASSESSMENT_URL, ASSESSMENT_KEY);
-  return client;
-}
-
-async function ensureSession(): Promise<void> {
-  const supabase = getClient();
-  const { data } = await supabase.auth.getSession();
-  if (data.session) return;
-  const { error } = await supabase.auth.signInAnonymously();
-  if (error) {
-    throw new Error(
-      /disabled/i.test(error.message)
-        ? "Anonymous sign-ins are disabled on the assessment project. " +
-            "Enable them in Supabase Dashboard → Authentication → " +
-            "Sign In / Providers → Allow anonymous sign-ins."
-        : error.message,
-    );
-  }
+  sources: SourceCitation[];
+  /** True when the engine declined — the reply is the approved deflection. */
+  deflected: boolean;
 }
 
 async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
-  const supabase = getClient();
+  const supabase = getSupabaseClient();
   await ensureSession();
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
@@ -124,14 +104,15 @@ export function abandonScreening(assessmentId: string): Promise<{ ok: boolean }>
   });
 }
 
+/**
+ * Asks the Clarification Engine to explain a term. `variableKey` is only a
+ * retrieval hint (the SCORED variable the user is looking at) so a bare
+ * "what does that mean?" still finds the right definition — it carries no
+ * assessment identity and the engine cannot act on it.
+ */
 export function askClarification(
-  assessmentId: string,
   question: string,
-  sessionId: string | null,
+  variableKey?: string,
 ): Promise<ClarifyResponse> {
-  return invoke<ClarifyResponse>("clarify", {
-    assessmentId,
-    question,
-    sessionId,
-  });
+  return invoke<ClarifyResponse>("clarify", { question, variableKey });
 }

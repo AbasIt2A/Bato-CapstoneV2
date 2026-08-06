@@ -232,6 +232,89 @@ body {
   margin-bottom: 8px;
 }
 
+/* ---------- evaluation ---------- */
+
+.evaluation {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 22px 2px 40px;
+}
+
+.instrument-card {
+  margin-top: 16px;
+}
+
+.success {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.success.big {
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.error-text {
+  color: #b91c1c;
+}
+
+.hint {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.likert-list {
+  padding-left: 1.1rem;
+}
+
+.likert-list > li {
+  margin-bottom: 1rem;
+}
+
+.likert-item {
+  margin: 0 0 0.35rem;
+  color: var(--ink);
+}
+
+.likert-options {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.likert-options label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  min-width: 3.2rem;
+  text-align: center;
+}
+
+.likert-options label.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.likert-options input {
+  position: absolute;
+  opacity: 0;
+}
+
+.likert-num {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.likert-label {
+  font-size: 0.62rem;
+  color: var(--ink-soft);
+}
+
 /* ---------- consent / results ---------- */
 
 .assessment-page {

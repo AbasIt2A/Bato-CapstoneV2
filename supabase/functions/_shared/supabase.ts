@@ -1,6 +1,6 @@
-// Shared server-side helpers for the General CKD Chatbot Edge Function:
-// CORS and the Supabase service-role client. The service-role client
-// bypasses RLS and must never leave server-side code.
+// Shared server-side helpers for the Edge Functions: CORS, the Supabase
+// service-role client, and caller identity. The service-role client bypasses
+// RLS and must never leave server-side code.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
@@ -37,4 +37,26 @@ export function createServiceClient(): SupabaseClient {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } },
   );
+}
+
+/**
+ * Resolves the caller's user id from the request JWT (anonymous sign-ins
+ * included). Returns null if the token is missing or invalid — the platform
+ * already rejects unauthenticated calls when verify_jwt is on, so this is a
+ * second check plus identity extraction.
+ *
+ * Used ONLY by the screening controller, which writes assessment rows owned
+ * by a caller. The clarification engine deliberately does not use it: that
+ * branch performs no writes and holds no assessment identity at all.
+ */
+export async function getCallerUserId(
+  req: Request,
+  supabase: SupabaseClient,
+): Promise<string | null> {
+  const auth = req.headers.get("Authorization") ?? "";
+  const token = auth.replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user.id;
 }

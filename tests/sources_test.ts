@@ -8,7 +8,13 @@ import {
   isApprovedSource,
 } from "../supabase/functions/_shared/sources.ts";
 
-/** Exactly the 8 IDs the contract names — order-insensitive. */
+/**
+ * Exactly the IDs admitted under the inclusion framework — order-insensitive.
+ * Must stay in sync with the knowledge_sources register (see
+ * supabase/migrations/20260806000001_source_register_and_scopes.sql and
+ * 20260806000002_register_psa_source.sql). PSA was admitted 2026-08-06 as
+ * the only official publisher of Philippine registered-death counts by cause.
+ */
 const EXPECTED_IDS = [
   "DOH",
   "PSN",
@@ -18,9 +24,10 @@ const EXPECTED_IDS = [
   "KDIGO",
   "AstraZeneca",
   "SCORED",
+  "PSA",
 ];
 
-Deno.test("APPROVED_SOURCE_IDS: exactly the approved 8, order-insensitive", () => {
+Deno.test("APPROVED_SOURCE_IDS: exactly the approved set, order-insensitive", () => {
   const actualSorted = [...APPROVED_SOURCE_IDS].sort();
   const expectedSorted = [...EXPECTED_IDS].sort();
   assertEquals(actualSorted, expectedSorted);
@@ -30,7 +37,7 @@ Deno.test("APPROVED_SOURCE_IDS: no duplicates", () => {
   assertEquals(APPROVED_SOURCE_IDS.length, new Set(APPROVED_SOURCE_IDS).size);
 });
 
-Deno.test("isApprovedSource: true for every one of the approved 8", () => {
+Deno.test("isApprovedSource: true for every approved source", () => {
   for (const id of EXPECTED_IDS) {
     assertEquals(isApprovedSource(id), true, id);
   }

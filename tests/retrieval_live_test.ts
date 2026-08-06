@@ -92,6 +92,9 @@ async function retrieveTopK(query: string): Promise<RetrievedChunk[]> {
         query_embedding: JSON.stringify(embedding),
         match_threshold: VECTOR_SIMILARITY_FLOOR,
         match_count: RETRIEVAL_TOP_K,
+        // match_scope is mandatory since 20260806000001; the unscoped
+        // 3-argument overload was dropped.
+        match_scope: "general_education",
       }),
     },
   );
@@ -107,6 +110,7 @@ async function retrieveTopK(query: string): Promise<RetrievedChunk[]> {
     topic_tags: Array.isArray(row.topic_tags) ? (row.topic_tags as string[]) : [],
     similarity: typeof row.similarity === "number" ? row.similarity : 0,
     heading_path: typeof row.heading_path === "string" ? row.heading_path : null,
+    scopes: Array.isArray(row.scopes) ? (row.scopes as string[]) : [],
   }));
 }
 

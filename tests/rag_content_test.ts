@@ -22,6 +22,7 @@ function fakeChunk(overrides: Partial<RerankedChunk> & { id: string }): Reranked
     topic_tags: ["basics"],
     similarity: 0.8,
     heading_path: "CKD Basics > What is CKD?",
+    scopes: ["general_education"],
     ...overrides,
   };
 }

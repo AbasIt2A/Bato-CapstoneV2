@@ -24,6 +24,7 @@ function chunk(overrides: Partial<RetrievedChunk> & { id: string }): RetrievedCh
     topic_tags: ["basics"],
     similarity: 0.5,
     heading_path: null,
+    scopes: ["general_education"],
     ...overrides,
   };
 }

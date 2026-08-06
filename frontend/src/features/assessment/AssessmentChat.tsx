@@ -25,6 +25,19 @@ const QUESTION_SHAPE =
 
 const EXPLAIN_CHIP = "Can you explain this question in simple words?";
 
+/**
+ * What the "Explain this question" chip actually SENDS, as opposed to what it
+ * displays. The chip text alone names no medical term, and the clarification
+ * engine's input gate judges the question text on its own — it never sees
+ * variableKey, which is only a retrieval hint. A bare "explain this question"
+ * is therefore correctly classified out of scope ("has not provided the
+ * question itself") and deflects every time. Quoting the current screening
+ * question gives the gate the term it needs.
+ */
+function explainQuestionQuery(prompt: string): string {
+  return `What does this screening question mean: "${prompt}"?`;
+}
+
 export default function AssessmentChat() {
   const navigate = useNavigate();
   const [consented, setConsented] = useState(hasConsented);
@@ -35,7 +48,6 @@ export default function AssessmentChat() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const clarifySessionRef = useRef<string | null>(null);
   const startedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +63,6 @@ export default function AssessmentChat() {
     setFatalError(null);
     setResult(null);
     setTurns([]);
-    clarifySessionRef.current = null;
     try {
       const res = await startScreening();
       setAssessmentId(res.assessmentId);
@@ -73,23 +84,27 @@ export default function AssessmentChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consented]);
 
-  async function sendClarification(question: string) {
-    if (!assessmentId) return;
+  /**
+   * @param shown  what the user sees in the transcript
+   * @param sent   what actually goes to the engine (defaults to `shown`);
+   *               differs only for the chip, which must carry the term.
+   */
+  async function sendClarification(shown: string, sent: string = shown) {
+    if (!step) return;
+    // The engine has no assessment identity and returns no step — it cannot
+    // advance or score anything. We therefore keep the current step here and
+    // re-display its prompt ourselves, so control visibly returns to the
+    // screening flow at exactly the variable the user paused on.
+    const currentStep = step;
     setBusy(true);
-    setTurns((t) => [...t, { role: "user", text: question }]);
+    setTurns((t) => [...t, { role: "user", text: shown }]);
     try {
-      const res = await askClarification(
-        assessmentId,
-        question,
-        clarifySessionRef.current,
-      );
-      clarifySessionRef.current = res.sessionId;
+      const res = await askClarification(sent, currentStep.key);
       setTurns((t) => [
         ...t,
         { role: "bot", text: res.reply },
-        { role: "bot", text: res.step.prompt },
+        { role: "bot", text: currentStep.prompt },
       ]);
-      setStep(res.step);
     } catch (err) {
       setTurns((t) => [
         ...t,
@@ -253,7 +268,12 @@ export default function AssessmentChat() {
           ))}
           <button
             className="starter explain"
-            onClick={() => void sendClarification(EXPLAIN_CHIP)}
+            onClick={() =>
+              void sendClarification(
+                EXPLAIN_CHIP,
+                explainQuestionQuery(step.prompt),
+              )
+            }
           >
             Explain this question
           </button>

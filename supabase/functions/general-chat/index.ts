@@ -10,8 +10,9 @@
 //   (5) if none pass, return the approved deflection;
 //   (6) else generate with retrieved chunks as UNTRUSTED DATA, strictly
 //       separated from instructions, citing each source;
-//   (7) output guard — cheap heuristic check before the reply ever reaches
-//       the user.
+//   (7) diagnostic-language filter — never let "you have CKD" reach a user;
+//   (8) output guard (injection fallout / groundedness) — cheap heuristic
+//       check before the reply ever reaches the user.
 //
 // Every infrastructure failure (embedding, RPC, generation) degrades to the
 // deflection with a server-side log — never a raw 500 with internals.
@@ -24,6 +25,7 @@ import { rerankChunks } from "../_shared/rerank.ts";
 import { buildGroundedUserMessage } from "../_shared/rag-content.ts";
 import { generateReply } from "../_shared/gemini.ts";
 import { checkDraftAnswer } from "../_shared/output-guard.ts";
+import { filterAssistantReply } from "../_shared/topic-filter.ts";
 import {
   DEFLECTION_MESSAGE,
   GENERAL_CHAT_SYSTEM_PROMPT,
@@ -33,6 +35,14 @@ import {
   createServiceClient,
   jsonResponse,
 } from "../_shared/supabase.ts";
+import type { RetrievalScope } from "../_shared/scopes.ts";
+
+/**
+ * Hard-locked. Never taken from the request — the client cannot widen this
+ * chatbot's retrieval surface to the screening-clarification corpus. The RPC
+ * enforces it again server-side (see match_knowledge_chunks).
+ */
+const SCOPE: RetrievalScope = "general_education";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -105,7 +115,7 @@ Deno.serve(async (req) => {
     // candidate pool. Infrastructure failure here maps to a deflection.
     let candidates: RetrievedChunk[];
     try {
-      candidates = await retrieveChunks(supabase, message);
+      candidates = await retrieveChunks(supabase, message, SCOPE);
     } catch (err) {
       console.error("general-chat: retrieval failed — deflecting:", err);
       return deflect();
@@ -113,7 +123,7 @@ Deno.serve(async (req) => {
 
     // (4) Rerank to the top-N above the relevance threshold. Never throws;
     // an empty result means nothing grounds this question.
-    const reranked = await rerankChunks(message, candidates);
+    const reranked = await rerankChunks(message, candidates, SCOPE);
     if (reranked.length === 0) {
       console.warn(
         "general-chat: no chunks cleared the rerank threshold — deflecting",
@@ -136,7 +146,16 @@ Deno.serve(async (req) => {
       return deflect();
     }
 
-    // (6) Output safety check — cheap heuristics, no model call. Pass this
+    // (7) Diagnostic-language filter. Distinct from the output guard below:
+    // this catches "you have CKD" reaching a user, which the groundedness/
+    // injection guard does not check for at all.
+    const filtered = filterAssistantReply(draft);
+    if (!filtered.ok) {
+      console.warn("general-chat: diagnostic-language filter blocked reply:", filtered.blockedReason);
+      return deflect();
+    }
+
+    // (8) Output safety check — cheap heuristics, no model call. Pass this
     // request's actually-retrieved sources so the groundedness/citation
     // check judges the draft against what the generator was actually given.
     const guard = checkDraftAnswer(

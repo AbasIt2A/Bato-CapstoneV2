@@ -41,3 +41,9 @@ policy = "oneshot"
 
 [functions.general-chat]
 verify_jwt = true
+
+[functions.screening]
+verify_jwt = true
+
+[functions.clarify]
+verify_jwt = true
