@@ -207,6 +207,17 @@ Deno.serve(async (req) => {
       return deflect();
     }
 
+    // The model may decline on its own by emitting the approved wording
+    // verbatim (the system prompt quotes it for exactly that purpose). Report
+    // that as a deflection rather than as an answer: otherwise the response
+    // carries deflected:false plus source chips for chunks the reply never
+    // used, and the UI renders a refusal styled as a normal cited answer.
+    if (draft.trim().replace(/\s+/g, " ") ===
+        CLARIFICATION_DEFLECTION_MESSAGE.replace(/\s+/g, " ")) {
+      console.warn("clarify: model declined on its own — reporting as deflection");
+      return deflect();
+    }
+
     // (7) Diagnostic-language filter. Distinct from the output guard below:
     // this catches "you have CKD" reaching a user mid-assessment, which the
     // groundedness/injection guard does not check for at all.

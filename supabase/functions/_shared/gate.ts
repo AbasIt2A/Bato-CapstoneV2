@@ -9,7 +9,7 @@
 //   LLM call is skipped entirely.
 //
 //   Layer 2 — LLM scope/injection classifier: a small, cheap
-//   gemini-2.5-flash-lite call that returns strict JSON
+//   flash-lite call (see GATE_MODEL_DEFAULT) that returns strict JSON
 //   {in_scope, injection_detected, reason}. This layer is FAIL-OPEN: if the
 //   call errors, times out, or returns garbage, the message proceeds as
 //   in-scope with reason "gate-error" — availability beats strictness here
@@ -148,11 +148,30 @@ export function preScreenInjection(query: string): boolean {
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-/** Cheap classifier model; override with the GATE_MODEL env var. */
-export const GATE_MODEL_DEFAULT = "gemini-2.5-flash-lite";
+/**
+ * Cheap classifier model; override with the GATE_MODEL env var.
+ *
+ * NOT a 2.5-series model: Google has closed `gemini-2.5-flash` and
+ * `gemini-2.5-flash-lite` to new API keys ("no longer available to new
+ * users", HTTP 404). A 404 here is caught below and fails OPEN, so an
+ * unavailable gate model silently disables scope and injection screening
+ * altogether — the failure is invisible in the reply, which makes picking a
+ * model that actually resolves a security matter, not a performance one.
+ */
+export const GATE_MODEL_DEFAULT = "gemini-3.5-flash-lite";
 
 /** Hard cap on the classifier round-trip before failing open. */
 export const GATE_TIMEOUT_MS = 6000;
+
+/**
+ * Gemini 3.x reasons before answering by default, which costs ~25s on a
+ * trivial prompt — far past GATE_TIMEOUT_MS, so every classification would
+ * abort and fail open. Classification needs no deliberation, so thinking is
+ * held at its lowest setting: measured ~0.9s here versus ~26s unset.
+ * (`thinkingBudget: 0` is rejected as an invalid argument on these models;
+ * `thinkingLevel` is the supported control.)
+ */
+const GATE_THINKING_LEVEL = "low";
 
 const FAIL_OPEN: GateVerdict = {
   in_scope: true,
@@ -332,6 +351,7 @@ export async function classifyQuery(
             temperature: 0,
             maxOutputTokens: 256,
             responseMimeType: "application/json",
+            thinkingConfig: { thinkingLevel: GATE_THINKING_LEVEL },
           },
         }),
         signal: AbortSignal.timeout(GATE_TIMEOUT_MS),

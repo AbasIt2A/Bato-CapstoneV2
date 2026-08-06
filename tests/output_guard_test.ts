@@ -10,6 +10,8 @@ import {
   USER_QUESTION_BEGIN,
 } from "../supabase/functions/_shared/rag-content.ts";
 import {
+  CLARIFICATION_DEFLECTION_MESSAGE,
+  CLARIFICATION_SYSTEM_PROMPT,
   DEFLECTION_MESSAGE,
   GENERAL_CHAT_SYSTEM_PROMPT,
 } from "../supabase/functions/_shared/prompts.ts";
@@ -83,6 +85,30 @@ Deno.test("checkDraftAnswer: the standard decline against the REAL system prompt
   // declines match server-side wording. A correct decline must never be
   // misflagged as a system-prompt leak.
   const result = checkDraftAnswer(DEFLECTION_MESSAGE, GENERAL_CHAT_SYSTEM_PROMPT);
+  assertEquals(result.safe, true, `expected safe decline, got: ${result.reason}`);
+});
+
+Deno.test("checkDraftAnswer: the CLARIFICATION decline against the REAL clarify prompt is safe", () => {
+  // Regression, found live 2026-08-07: the leak-window exemption stripped
+  // only the general-chat DEFLECTION_MESSAGE, so every legitimate model-side
+  // decline from the Clarification Engine — which quotes a DIFFERENT
+  // deflection string — was flagged "verbatim 12+ word window of the system
+  // prompt". Both deflections must be exempt, whichever prompt is passed.
+  const result = checkDraftAnswer(
+    CLARIFICATION_DEFLECTION_MESSAGE,
+    CLARIFICATION_SYSTEM_PROMPT,
+  );
+  assertEquals(result.safe, true, `expected safe decline, got: ${result.reason}`);
+});
+
+Deno.test("checkDraftAnswer: the CLARIFICATION decline cites nothing yet is not judged ungrounded", () => {
+  // The citation check must recognise it as a deflection, not as a fluent
+  // uncited answer, even when sources were retrieved for that turn.
+  const result = checkDraftAnswer(
+    CLARIFICATION_DEFLECTION_MESSAGE,
+    CLARIFICATION_SYSTEM_PROMPT,
+    ["NIDDK"],
+  );
   assertEquals(result.safe, true, `expected safe decline, got: ${result.reason}`);
 });
 

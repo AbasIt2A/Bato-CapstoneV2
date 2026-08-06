@@ -12,12 +12,46 @@
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-/** Generation model; override with the GEMINI_MODEL env var. */
-export const GENERATION_MODEL_DEFAULT = "gemini-2.5-flash";
+/**
+ * Generation model; override with the GEMINI_MODEL env var.
+ *
+ * NOT `gemini-2.5-flash`: Google has closed the 2.5 series to new API keys
+ * ("no longer available to new users", HTTP 404). Unlike the gate — which
+ * fails open — a 404 here throws, and the Edge Functions turn that into the
+ * approved deflection, so a stale model name shows up as "the chatbot
+ * refuses every question" rather than as an error.
+ *
+ * Benchmarked 2026-08-07 on the real grounded prompt (4.7KB system + 3KB
+ * retrieved chunks), answering "What is CKD?":
+ *
+ *   gemini-3.5-flash-lite    ~1.0s     ← chosen
+ *   gemini-3.1-flash-lite    ~1.5s
+ *   gemini-3.5-flash         ~4.0s
+ *   gemini-3.6-flash        ~22-24s    unusable: exceeds GENERATION_TIMEOUT_MS
+ *
+ * All four cited correctly. Spot-checking flash-lite against the larger
+ * flash on harder prompts (PhilHealth coverage, renal diet, "can herbal
+ * supplements cure stage 5 CKD") produced equivalent answers — same
+ * citations, same refusal to endorse supplements, same deferral to a
+ * professional — at roughly half the latency. The generation step only has
+ * to restate retrieved chunks in plain language, so the larger model's extra
+ * capability is not what this task is bottlenecked on.
+ */
+export const GENERATION_MODEL_DEFAULT = "gemini-3.5-flash-lite";
 
 /** Hard cap on the generation round-trip before failing (see gate.ts's
  *  GATE_TIMEOUT_MS / rerank.ts's RERANK_TIMEOUT_MS for the same pattern). */
 export const GENERATION_TIMEOUT_MS = 15000;
+
+/**
+ * Gemini 3.x deliberates before answering by default — ~26s on a trivial
+ * prompt, which blows straight past GENERATION_TIMEOUT_MS and aborts. These
+ * answers are short, plain-language, and fully grounded in retrieved chunks,
+ * so extended reasoning buys nothing: held at the lowest setting, measured
+ * ~2.4s versus ~26s unset. (`thinkingBudget: 0` is rejected as an invalid
+ * argument on these models; `thinkingLevel` is the supported control.)
+ */
+const GENERATION_THINKING_LEVEL = "low";
 
 export async function generateReply(options: {
   /** The ONLY trusted instruction region. */
@@ -43,6 +77,7 @@ export async function generateReply(options: {
         generationConfig: {
           temperature: 0.3,
           maxOutputTokens: options.maxOutputTokens ?? 1024,
+          thinkingConfig: { thinkingLevel: GENERATION_THINKING_LEVEL },
         },
       }),
       signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),

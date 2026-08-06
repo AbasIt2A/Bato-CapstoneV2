@@ -23,7 +23,10 @@ import {
   USER_QUESTION_BEGIN,
   USER_QUESTION_END,
 } from "./rag-content.ts";
-import { DEFLECTION_MESSAGE } from "./prompts.ts";
+import {
+  CLARIFICATION_DEFLECTION_MESSAGE,
+  DEFLECTION_MESSAGE,
+} from "./prompts.ts";
 import { APPROVED_SOURCE_IDS, SOURCE_DISPLAY_NAMES } from "./sources.ts";
 
 export interface DraftCheckResult {
@@ -47,6 +50,16 @@ const RULE_CHANGE_PATTERNS: RegExp[] = [
 
 /** Word-count window size for the verbatim system-prompt leak check. */
 const LEAK_WINDOW_WORDS = 12;
+
+/**
+ * Every approved deflection wording, across both chatbots. These are quoted
+ * inside their own system prompts and are legitimate things for a reply to
+ * repeat, so they are exempt from the leak and citation checks below.
+ */
+const DEFLECTIONS: readonly string[] = [
+  DEFLECTION_MESSAGE,
+  CLARIFICATION_DEFLECTION_MESSAGE,
+];
 
 function normalizeWhitespace(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
@@ -129,12 +142,20 @@ export function checkDraftAnswer(
     }
   }
 
-  // The system prompt quotes DEFLECTION_MESSAGE verbatim (so model-side
-  // declines match the server-side wording word for word). That quoted
-  // sentence is the one part of the prompt a correct reply may legitimately
-  // repeat — exclude it from the leak-window text, or every legitimate
-  // decline would be misflagged as a system-prompt leak.
-  const promptForLeakCheck = systemPrompt.split(DEFLECTION_MESSAGE).join(" ");
+  // Each system prompt quotes its own deflection wording verbatim (so a
+  // model-side decline matches the server-side one word for word). That
+  // quoted sentence is the one part of the prompt a correct reply may
+  // legitimately repeat — exclude it from the leak-window text, or every
+  // legitimate decline is misflagged as a system-prompt leak.
+  //
+  // BOTH deflections are stripped regardless of which prompt was passed.
+  // Stripping only the general-chat one meant every model-side decline from
+  // the Clarification Engine — which quotes CLARIFICATION_DEFLECTION_MESSAGE
+  // instead — tripped the leak check and was logged as a prompt leak.
+  const promptForLeakCheck = DEFLECTIONS.reduce(
+    (text, deflection) => text.split(deflection).join(" "),
+    systemPrompt,
+  );
   if (containsVerbatimSystemPromptWindow(draft, promptForLeakCheck)) {
     return {
       safe: false,
@@ -148,8 +169,13 @@ export function checkDraftAnswer(
   // answer that cites nothing is a sign the model answered from general
   // knowledge instead of the retrieved chunks — never distinguishable from
   // "ungrounded" by content alone, so treat it as unsafe and deflect.
-  const isDeflection =
-    normalizeWhitespace(draft) === normalizeWhitespace(DEFLECTION_MESSAGE);
+  // Likewise deflection-aware for both surfaces: a Clarification Engine
+  // decline is a valid reply that cites nothing, and must not be judged
+  // against the citation requirement below.
+  const draftNorm = normalizeWhitespace(draft);
+  const isDeflection = DEFLECTIONS.some(
+    (deflection) => draftNorm === normalizeWhitespace(deflection),
+  );
   if (
     draft.trim().length > 0 && !isDeflection &&
     !citesAnySource(draft, retrievedSourceIds)

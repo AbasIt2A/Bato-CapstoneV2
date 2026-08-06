@@ -16,7 +16,7 @@ behind a CKD-only scope guardrail and anti–prompt-injection defenses.
 user message
    │
    ▼
-[1] Input gate            regex pre-screen + gemini-2.5-flash-lite JSON verdict
+[1] Input gate            regex pre-screen + flash-lite JSON verdict
     {in_scope, injection_detected, reason}    → off-topic/injection ⇒ deflect
    │
    ▼

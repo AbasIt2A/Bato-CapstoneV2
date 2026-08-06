@@ -151,11 +151,28 @@ embedded.
 
 Your keys live in `.env` in the project root. It already exists.
 
-**Gemini — already done.** Your working `GEMINI_API_KEY` was reused from your
-capstone's `supabase/.env` and has been verified live: the embedding model
-(gemini-embedding-001) returns 768-dimension vectors and the gate model
-(gemini-2.5-flash-lite) responds. If you ever need to rotate it, make a new key
-at https://aistudio.google.com/apikey and paste it into `GEMINI_API_KEY=`.
+**Gemini.** `GEMINI_API_KEY` powers embeddings, the input gate and answer
+generation. Make a key at https://aistudio.google.com/apikey and paste it into
+`GEMINI_API_KEY=`.
+
+Two things to know if you swap keys:
+
+- **The 2.5 models are closed to new keys.** `gemini-2.5-flash` and
+  `gemini-2.5-flash-lite` return HTTP 404 "no longer available to new users"
+  on any recently-created key. This project therefore targets
+  `gemini-3.6-flash` (generation) and `gemini-3.5-flash-lite` (gate). Check
+  what a key can actually reach with
+  `GET https://generativelanguage.googleapis.com/v1beta/models` — but note the
+  listing is optimistic and includes models the key cannot call, so confirm
+  with a real `generateContent` request.
+- **The free tier is ~20 generation requests per day.** Every chat message
+  costs two of them (gate + generation), so a free key is good for roughly ten
+  messages daily. That is fine for development and nowhere near enough for the
+  evaluation study — enable billing before running participants.
+
+When generation quota runs out the gate fails open, retrieval still works, and
+only the final answer call fails, so the app degrades to "the chatbot deflects
+everything" rather than showing an error. Check quota first when you see that.
 
 **Cohere — optional.** Cohere powers the rerank stage (step 4 of the pipeline).
 Without a key, the pipeline automatically falls back to cosine-similarity
