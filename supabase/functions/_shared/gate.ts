@@ -317,6 +317,12 @@ peripheral vascular disease or circulation problems in the legs; protein in
 the urine or proteinuria; and the screening's own wording about age and sex.
 Treat a bare term with no question ("anemia") as asking for its definition.
 
+Two of the nine questions ask something ordinary rather than medical — the
+person's AGE and their SEX ASSIGNED AT BIRTH. Asking what either of those
+questions means, or why the screening asks it, is IN SCOPE. Do not rule
+such a message out merely because it contains no medical term. For example,
+'What does this screening question mean: "how old are you?"' is in scope.
+
 IMPORTANT: these conditions count as in scope EVEN THOUGH they are not
 themselves kidney diseases. Explaining them is this engine's purpose.
 

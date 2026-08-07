@@ -36,8 +36,14 @@ explained in its own section below.
 
 ## Older age and kidney risk
 
-Kidney function naturally declines with age; risk rises from age 50 and is
-higher at 60 and 70+ (SCORED; Bang et al., 2007).
+This screening question asks how old you are, in years. Age is asked
+because kidney function naturally declines as people grow older, so age
+helps estimate risk even in someone who feels perfectly well.
+
+Risk rises from age 50 and is higher at 60 and at 70 and above, and the
+SCORED tool counts more points at each older band (SCORED; Bang et al.,
+2007). Being older does not mean a person has kidney disease — it only
+raises the chance that getting checked is worthwhile.
 
 ## Female sex and kidney risk
 
