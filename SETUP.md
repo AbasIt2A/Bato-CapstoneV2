@@ -151,28 +151,41 @@ embedded.
 
 Your keys live in `.env` in the project root. It already exists.
 
-**Gemini.** `GEMINI_API_KEY` powers embeddings, the input gate and answer
-generation. Make a key at https://aistudio.google.com/apikey and paste it into
-`GEMINI_API_KEY=`.
+**Gemini.** `GEMINI_API_KEY` powers embeddings and answer generation. Make a
+key at https://aistudio.google.com/apikey and paste it into `GEMINI_API_KEY=`.
 
 Two things to know if you swap keys:
 
 - **The 2.5 models are closed to new keys.** `gemini-2.5-flash` and
   `gemini-2.5-flash-lite` return HTTP 404 "no longer available to new users"
-  on any recently-created key. This project therefore targets
-  `gemini-3.6-flash` (generation) and `gemini-3.5-flash-lite` (gate). Check
-  what a key can actually reach with
-  `GET https://generativelanguage.googleapis.com/v1beta/models` — but note the
-  listing is optimistic and includes models the key cannot call, so confirm
-  with a real `generateContent` request.
-- **The free tier is ~20 generation requests per day.** Every chat message
-  costs two of them (gate + generation), so a free key is good for roughly ten
-  messages daily. That is fine for development and nowhere near enough for the
-  evaluation study — enable billing before running participants.
+  on any recently-created key. Check what a key can actually reach with
+  `deno task check:providers`, which makes a real request to every model this
+  project uses. Do NOT rely on
+  `GET https://generativelanguage.googleapis.com/v1beta/models` — that listing
+  is optimistic and includes models the key cannot call.
+- **The free tier is 20 generation requests per day, per model.** Read that
+  limit carefully: it is metered *per model name*, which is why this project
+  deliberately uses a different model for each role (see the quota-budget
+  table in [README.md](README.md)). Two roles pointed at one model share one
+  allowance.
 
-When generation quota runs out the gate fails open, retrieval still works, and
-only the final answer call fails, so the app degrades to "the chatbot deflects
-everything" rather than showing an error. Check quota first when you see that.
+**Groq — strongly recommended.** `GROQ_API_KEY` moves the input gate off
+Gemini entirely. Make a key at https://console.groq.com/keys and paste it into
+`GROQ_API_KEY=`.
+
+This is the single highest-value line in your `.env`. The gate runs on every
+message, and while it shared Gemini with answer generation, each message cost
+2 of the day's 20 requests — about ten messages a day for the whole project.
+Groq's free tier is orders of magnitude larger and a small model classifies
+"is this about kidneys" perfectly well. Without the key nothing breaks: the
+gate falls back to Gemini and you get roughly half the capacity.
+
+**A note on how quota failure looks.** When generation quota runs out, the
+gate fails open, retrieval still works, and only the final answer call fails —
+so the app degrades to *"the chatbot deflects everything"* rather than showing
+an error. That is indistinguishable from a scope, threshold or retrieval bug
+by eye. Run `deno task check:providers` first whenever you see mass
+deflection; it reports HTTP 429 as "QUOTA EXHAUSTED" explicitly.
 
 **Cohere — optional.** Cohere powers the rerank stage (step 4 of the pipeline).
 Without a key, the pipeline automatically falls back to cosine-similarity
@@ -264,19 +277,27 @@ expected.
 
 The deployed function does not read your local `.env` — you give it secrets
 through Supabase. Open your `.env`, copy the real values, and run (skip
-`COHERE_API_KEY` if you don't have one):
+`COHERE_API_KEY` or `GROQ_API_KEY` if you don't have one):
 
 ```powershell
-npx supabase secrets set GEMINI_API_KEY=your-real-gemini-key COHERE_API_KEY=your-cohere-key ALLOWED_ORIGIN=https://your-frontend-url
+npx supabase secrets set GEMINI_API_KEY=your-real-gemini-key GROQ_API_KEY=your-groq-key COHERE_API_KEY=your-cohere-key ALLOWED_ORIGIN=https://your-frontend-url
 ```
 
 `ALLOWED_ORIGIN` is the website address your frontend will call the chatbot
 from — in production set it to your real frontend URL; while testing you can
 leave it unset (it defaults to `*`, allow-everything, which is fine for local
-development only). Then deploy:
+development only).
+
+⚠️ **Do not set `GEMINI_MODEL` as a secret unless you mean to.** Supabase
+secrets are project-wide, so one `GEMINI_MODEL` would apply to *both*
+functions and collapse the per-chatbot model split that keeps them on separate
+daily quotas. The code defaults are already distinct; leave them alone, or set
+`GEMINI_MODEL` and `CLARIFY_GEMINI_MODEL` together to two different models.
+
+Then deploy both functions:
 
 ```powershell
-npx supabase functions deploy general-chat
+npx supabase functions deploy general-chat clarify
 ```
 
 ---

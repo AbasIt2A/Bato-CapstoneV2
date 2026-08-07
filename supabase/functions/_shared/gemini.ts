@@ -10,10 +10,13 @@
 // never concatenate prior turns, user text, or retrieved text into the
 // system prompt.
 
+import type { RetrievalScope } from "./scopes.ts";
+
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 /**
- * Generation model; override with the GEMINI_MODEL env var.
+ * General CKD Chatbot's generation model; override with the GEMINI_MODEL env
+ * var.
  *
  * NOT `gemini-2.5-flash`: Google has closed the 2.5 series to new API keys
  * ("no longer available to new users", HTTP 404). Unlike the gate — which
@@ -38,6 +41,52 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
  * capability is not what this task is bottlenecked on.
  */
 export const GENERATION_MODEL_DEFAULT = "gemini-3.5-flash-lite";
+
+/**
+ * LLM Clarification Engine's generation model; override with the
+ * CLARIFY_GEMINI_MODEL env var.
+ *
+ * A DIFFERENT model from the general chatbot's, and the difference is the
+ * point rather than a quality judgement. Google's free tier meters
+ * `generateContent` per project PER MODEL (20/day), so two chatbots sharing
+ * one model name share one daily allowance and starve each other; two names
+ * are two independent allowances at no cost and no loss of capability.
+ *
+ * `gemini-3.1-flash-lite` measured ~1.5s against `gemini-3.5-flash-lite`'s
+ * ~1.0s on the same grounded prompt, both citing correctly. Half a second is
+ * a fair price for doubling the day's capacity, and clarification is the
+ * lower-volume path of the two — it fires only when a user pauses
+ * mid-questionnaire to ask what a term means.
+ *
+ * Both models are held at the SAME temperature and prompt by their callers;
+ * nothing about the answer contract varies with this setting. If you change
+ * it, change it to a model that is not `GENERATION_MODEL_DEFAULT` and not
+ * `GATE_MODEL_DEFAULT` (gate.ts), or the buckets silently merge again.
+ */
+export const CLARIFY_GENERATION_MODEL_DEFAULT = "gemini-3.1-flash-lite";
+
+/**
+ * The generation model for `scope`, env-overridable per scope.
+ *
+ * Callers pass a scope rather than a model name so that the "one model per
+ * scope" invariant lives in one place. Note that Supabase function secrets
+ * are project-wide: a single GEMINI_MODEL secret would otherwise apply to
+ * both functions and re-collapse the split, which is why there are two
+ * distinct variable names.
+ */
+export function generationModelFor(scope: RetrievalScope): string {
+  const envName = scope === "screening_clarification"
+    ? "CLARIFY_GEMINI_MODEL"
+    : "GEMINI_MODEL";
+  const fallback = scope === "screening_clarification"
+    ? CLARIFY_GENERATION_MODEL_DEFAULT
+    : GENERATION_MODEL_DEFAULT;
+  try {
+    return Deno.env.get(envName) ?? fallback;
+  } catch {
+    return fallback; // no env permission (offline tests)
+  }
+}
 
 /** Hard cap on the generation round-trip before failing (see gate.ts's
  *  GATE_TIMEOUT_MS / rerank.ts's RERANK_TIMEOUT_MS for the same pattern). */
@@ -70,10 +119,15 @@ export async function generateReply(options: {
    * which mid-assessment reads as the tool being broken.
    */
   temperature?: number;
+  /**
+   * Selects the generation model (see generationModelFor). Defaults to
+   * general education so existing callers and tests are unchanged.
+   */
+  scope?: RetrievalScope;
 }): Promise<string> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
-  const model = Deno.env.get("GEMINI_MODEL") ?? GENERATION_MODEL_DEFAULT;
+  const model = generationModelFor(options.scope ?? "general_education");
 
   const request = () =>
     fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {

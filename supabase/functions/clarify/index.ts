@@ -54,10 +54,22 @@
 //   → { reply, sources, deflected }
 
 import { classifyQuery, type GateVerdict } from "../_shared/gate.ts";
-import { retrieveChunks, type RetrievedChunk } from "../_shared/retrieval.ts";
+import {
+  embedForCache,
+  embedQuery,
+  retrieveChunks,
+  type RetrievedChunk,
+} from "../_shared/retrieval.ts";
 import { rerankChunks } from "../_shared/rerank.ts";
 import { buildGroundedUserMessage } from "../_shared/rag-content.ts";
-import { generateReply } from "../_shared/gemini.ts";
+import { generateReply, generationModelFor } from "../_shared/gemini.ts";
+import {
+  type CachedAnswer,
+  lookupCachedAnswer,
+  lookupExactAnswer,
+  recordCacheHit,
+  storeAnswer,
+} from "../_shared/answer-cache.ts";
 import { checkDraftAnswer } from "../_shared/output-guard.ts";
 import { filterAssistantReply } from "../_shared/topic-filter.ts";
 import {
@@ -175,9 +187,71 @@ Deno.serve(async (req) => {
     const retrievalQuery = variableKey
       ? `${variableKey}: ${question}`
       : question;
+
+    // Embed ONCE, for both the cache probe and the pgvector search.
+    //
+    // The vector is of retrievalQuery, not of the bare question, and the
+    // cache is keyed on it for that reason: "what does that mean?" asked on
+    // the anemia step and on the proteinuria step are different questions
+    // that happen to share their text. Including the variable hint in the
+    // embedded string is what keeps them apart in the cache, exactly as it
+    // keeps them apart in retrieval.
+    // Serves a cache hit. After the gate, and within this scope only — a
+    // clarification reply is never visible to the general chatbot or vice
+    // versa; the scope filter lives inside the lookups themselves.
+    const serveCached = (cached: CachedAnswer): Response => {
+      console.info(
+        `clarify: answer-cache ${cached.tier} hit (similarity ${
+          cached.similarity.toFixed(3)
+        }) — no generation call`,
+      );
+      const body: ClarifyResponse = {
+        reply: cached.reply,
+        sources: cached.sources as SourceCitation[],
+        deflected: false,
+      };
+      return jsonResponse(body);
+    };
+
+    // TIER 1 — exact match, before any embedding. This is the tier that pays
+    // here: clarification questions are highly templated ("what does X
+    // mean"), so literal repeats across participants are the common case.
+    const exact = await lookupExactAnswer(supabase, retrievalQuery, SCOPE);
+    if (exact) {
+      await recordCacheHit(supabase, exact.id);
+      return serveCached(exact);
+    }
+
+    // Two geometries, issued in parallel — see general-chat for the reasoning.
+    let embedding: number[];
+    let cacheEmbedding: number[];
+    try {
+      [embedding, cacheEmbedding] = await Promise.all([
+        embedQuery(retrievalQuery),
+        embedForCache(retrievalQuery),
+      ]);
+    } catch (err) {
+      console.error("clarify: embedding failed — deflecting:", err);
+      return deflect();
+    }
+
+    // TIER 2 — similarity backstop at 0.98, stricter than general education.
+    // The terms most likely to collide here are precisely the ones the
+    // questionnaire asks about together, so the margin matters more.
+    const cached = await lookupCachedAnswer(supabase, cacheEmbedding, SCOPE);
+    if (cached) {
+      await recordCacheHit(supabase, cached.id);
+      return serveCached(cached);
+    }
+
     let candidates: RetrievedChunk[];
     try {
-      candidates = await retrieveChunks(supabase, retrievalQuery, SCOPE);
+      candidates = await retrieveChunks(
+        supabase,
+        retrievalQuery,
+        SCOPE,
+        embedding,
+      );
     } catch (err) {
       console.error("clarify: retrieval failed — deflecting:", err);
       return deflect();
@@ -205,6 +279,10 @@ Deno.serve(async (req) => {
         // and sampling variance here showed up as the engine refusing a
         // valid screening question roughly one run in four.
         temperature: 0,
+        // This engine's own generation model, deliberately not the general
+        // chatbot's: the free tier meters per model, so two names are two
+        // daily allowances (see generationModelFor in gemini.ts).
+        scope: SCOPE,
       });
     } catch (err) {
       console.error("clarify: generation failed — deflecting:", err);
@@ -248,6 +326,21 @@ Deno.serve(async (req) => {
       title: c.title,
       heading_path: c.heading_path ?? null,
     }));
+
+    // Cache the finished reply. Reached only past the self-declination check,
+    // the diagnostic filter and the output guard, so neither a deflection nor
+    // a model-authored refusal can be stored — the latter matters especially
+    // here, where a cached refusal would make one term permanently
+    // unexplainable mid-assessment.
+    await storeAnswer(supabase, {
+      scope: SCOPE,
+      question: retrievalQuery,
+      // The SEMANTIC_SIMILARITY vector, matching what tier 2 queries against.
+      embedding: cacheEmbedding,
+      reply: draft,
+      sources,
+      model: generationModelFor(SCOPE),
+    });
 
     const response: ClarifyResponse = {
       reply: draft,

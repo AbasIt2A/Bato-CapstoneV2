@@ -53,21 +53,54 @@ export interface RetrievedChunk {
 }
 
 /**
+ * Embeds a user query for retrieval.
+ *
+ * Exposed separately from retrieveChunks() so a caller that needs the query
+ * vector for something else — the answer cache looks up by cosine distance
+ * over this exact vector — can compute it once and hand it back in, rather
+ * than embedding the same string twice per request. Same model, same task
+ * type, so a cache probe and the retrieval it might replace are guaranteed to
+ * be measured in the same space.
+ */
+export function embedQuery(query: string): Promise<number[]> {
+  return embedText({ text: query, taskType: "RETRIEVAL_QUERY" });
+}
+
+/**
+ * Embeds a user query for the ANSWER CACHE's similarity tier.
+ *
+ * A separate vector from embedQuery(), under SEMANTIC_SIMILARITY rather than
+ * RETRIEVAL_QUERY, because the two answer different questions: "which
+ * passages match this query" versus "is this the same question as that one".
+ * They are not interchangeable, and mixing them would compare vectors from
+ * two different geometries.
+ *
+ * The extra API call is affordable — embeddings sit on a separate, far larger
+ * quota than generation — and callers issue both in parallel, so it costs no
+ * additional wall-clock latency.
+ */
+export function embedForCache(query: string): Promise<number[]> {
+  return embedText({ text: query, taskType: "SEMANTIC_SIMILARITY" });
+}
+
+/**
  * Top-K candidate chunks within `scope`, at or above that scope's vector
  * floor, best match first. Empty array ⇒ nothing in the scoped corpus is even
  * loosely related; the caller deflects. Throws on infrastructure failure
  * (embedding or RPC) — the caller maps that to a deflection, never a 500.
+ *
+ * `precomputedEmbedding` must be the embedding of `query` under
+ * embedQuery(); passing a vector for different text silently retrieves for
+ * that other text instead. When omitted, the query is embedded here.
  */
 export async function retrieveChunks(
   supabase: SupabaseClient,
   query: string,
   scope: RetrievalScope,
+  precomputedEmbedding?: number[],
 ): Promise<RetrievedChunk[]> {
   const profile = scopeProfile(scope);
-  const embedding = await embedText({
-    text: query,
-    taskType: "RETRIEVAL_QUERY",
-  });
+  const embedding = precomputedEmbedding ?? await embedQuery(query);
   // Parameterized RPC — never string-built SQL. match_scope is filtered
   // inside the query; an unrecognised value matches nothing (fail-closed).
   const { data, error } = await supabase.rpc("match_knowledge_chunks", {

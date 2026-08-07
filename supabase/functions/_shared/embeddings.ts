@@ -25,9 +25,25 @@ export const EMBEDDING_MODEL = "gemini-embedding-001";
  *  constant AND the migration together — and re-ingesting. */
 export const EMBEDDING_DIMENSION = 768;
 
-// Gemini distinguishes the embedding of a stored passage from the embedding
-// of a search query; using the matched task types improves retrieval quality.
-export type EmbeddingTaskType = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
+/**
+ * Gemini distinguishes the embedding of a stored passage from the embedding
+ * of a search query; using the matched task types improves retrieval quality.
+ *
+ * SEMANTIC_SIMILARITY is a third, genuinely different geometry, and the
+ * answer cache needs it. RETRIEVAL_QUERY optimises a query vector for
+ * matching against DOCUMENTS, which is not the same problem as deciding
+ * whether two QUESTIONS mean the same thing. Measured on this corpus, the
+ * paraphrase "What is chronic kidney disease?" / "What's CKD?" scored 0.754
+ * under RETRIEVAL_QUERY against 0.910 under SEMANTIC_SIMILARITY — while the
+ * distinct pair "prevent CKD" / "treat CKD" moved much less. Same-meaning and
+ * different-meaning pairs still overlap under both, which is why the cache
+ * does not rely on similarity alone (see answer-cache.ts), but the
+ * similarity-tuned space is strictly the better of the two for the job.
+ */
+export type EmbeddingTaskType =
+  | "RETRIEVAL_DOCUMENT"
+  | "RETRIEVAL_QUERY"
+  | "SEMANTIC_SIMILARITY";
 
 export async function embedText(options: {
   text: string;

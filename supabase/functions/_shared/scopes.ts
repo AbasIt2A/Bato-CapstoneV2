@@ -54,6 +54,32 @@ export interface ScopeProfile {
   rerankTopN: number;
   /** Cosine floor used only on the degraded (no-reranker) path. */
   fallbackSimilarity: number;
+  /**
+   * Minimum cosine similarity between a new query and a cached one before
+   * the cached reply is served instead of generating a fresh answer.
+   *
+   * A different KIND of threshold from the four above. Those compare a
+   * question to a PASSAGE and decide whether it is worth showing; this
+   * compares a question to another QUESTION and decides whether the two are
+   * the same question. The failure it must not commit is answering what a
+   * user did not ask, which no downstream stage can catch — the reply is
+   * served verbatim, having already passed every guard for a different
+   * question.
+   *
+   * SET FROM MEASUREMENT, NOT INTUITION, and the measurement was
+   * unflattering. On 2026-08-07, embedding similarity was shown NOT to
+   * separate paraphrases from near-misses on this corpus under either
+   * geometry: with SEMANTIC_SIMILARITY, same-meaning pairs bottomed out at
+   * 0.885 while different-meaning pairs ("prevent CKD" vs "treat CKD")
+   * reached 0.925 — an overlapping band with no safe cut inside it.
+   *
+   * These values therefore sit ABOVE the entire measured false-hit range
+   * rather than inside the overlap. That makes tier 2 a rare-hit backstop by
+   * design; the exact-match tier in answer-cache.ts is what actually earns
+   * the savings. Lowering these to raise the hit rate walks straight into
+   * the overlap — do not, without re-measuring and finding a wider gap.
+   */
+  cacheHitThreshold: number;
 }
 
 function envNumber(name: string, fallback: number): number {
@@ -121,6 +147,8 @@ export const SCOPE_PROFILES: Record<RetrievalScope, ScopeProfile> = {
     rerankThreshold: envNumber("RERANK_THRESHOLD", 0.30),
     rerankTopN: envNumber("RERANK_TOP_N", 4),
     fallbackSimilarity: envNumber("FALLBACK_SIMILARITY_THRESHOLD", 0.60),
+    // 0.97: 0.045 clear of the worst measured false-hit pair (0.925).
+    cacheHitThreshold: envNumber("CACHE_HIT_THRESHOLD", 0.97),
   },
   screening_clarification: {
     topK: envNumber("CLARIFY_RETRIEVAL_TOP_K", 12),
@@ -130,6 +158,15 @@ export const SCOPE_PROFILES: Record<RetrievalScope, ScopeProfile> = {
     // 0.57, not 0.65 — see the note above. The old default deflected every
     // natural-language question on the no-reranker path.
     fallbackSimilarity: envNumber("CLARIFY_FALLBACK_SIMILARITY", 0.57),
+    // Stricter still, consistent with every other clarification threshold and
+    // for the same reason: this runs beside a validated instrument, at the
+    // moment a user is deciding how to answer a scored variable. Serving the
+    // definition of the wrong term there is worse than spending a generation
+    // call — and the terms most at risk of colliding are exactly the ones the
+    // questionnaire asks about together. The cost of strictness is low here
+    // because clarification questions are highly templated ("what does X
+    // mean"), so the exact-match tier catches most repeats outright.
+    cacheHitThreshold: envNumber("CLARIFY_CACHE_HIT_THRESHOLD", 0.98),
   },
 };
 

@@ -2,7 +2,8 @@
   "tasks": {
     "test": "deno test --allow-read --allow-env tests/",
     "test:live": "deno test --env-file=.env --allow-read --allow-env --allow-net tests/",
-    "check": "deno check supabase/functions/general-chat/index.ts supabase/functions/screening/index.ts supabase/functions/clarify/index.ts scripts/ingest-knowledge.ts scripts/chunker.ts",
+    "check": "deno check supabase/functions/general-chat/index.ts supabase/functions/screening/index.ts supabase/functions/clarify/index.ts scripts/ingest-knowledge.ts scripts/chunker.ts scripts/check-providers.ts",
+    "check:providers": "deno run --env-file=.env --allow-env --allow-net scripts/check-providers.ts",
     "ingest:dry": "deno run --allow-read scripts/ingest-knowledge.ts --dry-run",
     "ingest": "deno run --env-file=.env --allow-read --allow-env --allow-net scripts/ingest-knowledge.ts"
   }
