@@ -26,16 +26,49 @@ const QUESTION_SHAPE =
 const EXPLAIN_CHIP = "Can you explain this question in simple words?";
 
 /**
- * What the "Explain this question" chip actually SENDS, as opposed to what it
- * displays. The chip text alone names no medical term, and the clarification
- * engine's input gate judges the question text on its own — it never sees
- * variableKey, which is only a retrieval hint. A bare "explain this question"
- * is therefore correctly classified out of scope ("has not provided the
- * question itself") and deflects every time. Quoting the current screening
- * question gives the gate the term it needs.
+ * Sentences in a screening prompt that tell the user HOW to enter an answer,
+ * rather than what is being asked. Dropped before the prompt is quoted to
+ * the clarification engine.
  */
-function explainQuestionQuery(prompt: string): string {
-  return `What does this screening question mean: "${prompt}"?`;
+const INPUT_INSTRUCTION = /(?:^|\s)(?:please type|if you have never been told)\b[^.?!]*[.?!]/gi;
+
+/**
+ * Screening questions whose prompt contains no clinical term at all, and so
+ * cannot be quoted to the clarification engine — its input gate judges the
+ * question text on its own and has nothing to key on. Only `age` qualifies:
+ * "how old are you" is pure demographics. `female` looks similar but its
+ * prompt says "kidney disease risk differs between males and females", which
+ * is enough.
+ */
+const NO_CLINICAL_TERM: Record<string, string> = {
+  age: "Why does this screening ask my age, and what does age have to do with kidney health?",
+};
+
+/**
+ * What the "Explain this question" chip SENDS, as opposed to what it
+ * displays. The chip text alone names no medical term, and the gate never
+ * sees variableKey — that is only a retrieval hint — so the sent query must
+ * carry the term itself. Hence quoting the current screening question.
+ *
+ * The quote is stripped of input instructions first: the age prompt ends
+ * "Please type your age in years (for example, 54)." and the engine read
+ * that as a request for help filling in the form.
+ *
+ * Every part of this was measured against the deployed function, because
+ * each plausible simplification fails a different subset of the nine:
+ *   - quote the prompt verbatim            -> 8/9 (age deflects)
+ *   - quote it with instructions stripped  -> 8/9 (age still deflects:
+ *     "To get started: how old are you?" names nothing clinical)
+ *   - ask about the subject for every key  -> 6/9 (age passes, but female,
+ *     anemia and diabetes now deflect — the term the gate keys on is gone)
+ * So: quote the trimmed prompt, except where there is no term to quote.
+ * Re-measure all nine before changing this.
+ */
+function explainQuestionQuery(variableKey: string, prompt: string): string {
+  const override = NO_CLINICAL_TERM[variableKey];
+  if (override) return override;
+  const asked = prompt.replace(INPUT_INSTRUCTION, "").replace(/\s+/g, " ").trim();
+  return `What does this screening question mean: "${asked}"?`;
 }
 
 export default function AssessmentChat() {
@@ -271,7 +304,7 @@ export default function AssessmentChat() {
             onClick={() =>
               void sendClarification(
                 EXPLAIN_CHIP,
-                explainQuestionQuery(step.prompt),
+                explainQuestionQuery(step.key, step.prompt),
               )
             }
           >
