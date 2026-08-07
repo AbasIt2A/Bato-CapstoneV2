@@ -205,3 +205,113 @@ Deno.test("rerankChunks: malformed Cohere response degrades to fallback, never t
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// Per-scope thresholds on the COHERE path
+//
+// REGRESSION GUARD. The Cohere branch used to apply the module-level
+// RERANK_THRESHOLD (0.30) and RERANK_TOP_N (4) — general-education values —
+// regardless of the scope passed in, so the clarification engine silently ran
+// at general-education strictness instead of its stricter 0.45 / top-3. That
+// inverts the precision-over-recall trade-off documented at length in
+// scopes.ts, right beside a validated instrument.
+//
+// It survived undetected because COHERE_API_KEY was unset for this project's
+// entire history: every request took fallbackBySimilarity(), which reads the
+// profile correctly. The test above could not catch it either, because it
+// exercises only the default scope, where the constant and the profile value
+// happen to be equal. These tests use the scope where they DIFFER.
+// ---------------------------------------------------------------------------
+
+/** Runs `fn` with a fake Cohere key and a stubbed fetch, restoring both. */
+async function withCohere(
+  respond: (body: Record<string, unknown>) => Response,
+  fn: (sent: Record<string, unknown>[]) => Promise<void>,
+): Promise<void> {
+  const originalFetch = globalThis.fetch;
+  let original: string | undefined;
+  try {
+    original = Deno.env.get("COHERE_API_KEY");
+  } catch { /* no env permission */ }
+  const sent: Record<string, unknown>[] = [];
+  try {
+    Deno.env.set("COHERE_API_KEY", "test-key");
+    globalThis.fetch = ((_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      sent.push(body);
+      return Promise.resolve(respond(body));
+    }) as typeof fetch;
+    await fn(sent);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (original !== undefined) Deno.env.set("COHERE_API_KEY", original);
+    else {
+      try {
+        Deno.env.delete("COHERE_API_KEY");
+      } catch { /* no env permission */ }
+    }
+  }
+}
+
+Deno.test("rerankChunks: clarify scope applies ITS threshold (0.45), not 0.30", async () => {
+  const chunks: RetrievedChunk[] = [
+    chunk({ id: "0", scopes: ["screening_clarification"] }),
+    chunk({ id: "1", scopes: ["screening_clarification"] }),
+    chunk({ id: "2", scopes: ["screening_clarification"] }),
+  ];
+  await withCohere(
+    () =>
+      cohereResponse([
+        { index: 0, relevance_score: 0.91 },
+        // Both of these clear the general threshold (0.30) and must still be
+        // dropped under clarification's 0.45. 0.305 is the score actually
+        // observed being wrongly kept in production.
+        { index: 1, relevance_score: 0.40 },
+        { index: 2, relevance_score: 0.305 },
+      ]),
+    async () => {
+      const result = await rerankChunks("What is anemia?", chunks, "screening_clarification");
+      assertEquals(result.map((r) => r.id), ["0"]);
+    },
+  );
+});
+
+Deno.test("rerankChunks: general scope still keeps 0.30-0.45 chunks", async () => {
+  // The mirror of the test above: the fix must not make general education
+  // stricter as a side effect.
+  const chunks: RetrievedChunk[] = [chunk({ id: "0" }), chunk({ id: "1" })];
+  await withCohere(
+    () =>
+      cohereResponse([
+        { index: 0, relevance_score: 0.91 },
+        { index: 1, relevance_score: 0.35 },
+      ]),
+    async () => {
+      const result = await rerankChunks("What is CKD?", chunks, "general_education");
+      assertEquals(result.map((r) => r.id), ["0", "1"]);
+    },
+  );
+});
+
+Deno.test("rerankChunks: each scope requests and caps at ITS OWN top-N", async () => {
+  const many: RetrievedChunk[] = Array.from(
+    { length: 6 },
+    (_, i) => chunk({ id: String(i) }),
+  );
+  const allRelevant = Array.from(
+    { length: 6 },
+    (_, i) => ({ index: i, relevance_score: 0.9 }),
+  );
+
+  await withCohere(() => cohereResponse(allRelevant), async (sent) => {
+    const result = await rerankChunks("q", many, "screening_clarification");
+    assertEquals(sent[0].top_n, 3, "clarify must ask Cohere for its own top-N");
+    assertEquals(result.length, 3, "clarify must cap at 3, not 4");
+  });
+
+  await withCohere(() => cohereResponse(allRelevant), async (sent) => {
+    const result = await rerankChunks("q", many, "general_education");
+    assertEquals(sent[0].top_n, 4);
+    assertEquals(result.length, 4);
+  });
+});

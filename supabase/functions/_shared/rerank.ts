@@ -118,7 +118,7 @@ export async function rerankChunks(
         model: RERANK_MODEL,
         query,
         documents: chunks.map(rerankDocument),
-        top_n: Math.min(RERANK_TOP_N, chunks.length),
+        top_n: Math.min(profile.rerankTopN, chunks.length),
       }),
       signal: AbortSignal.timeout(RERANK_TIMEOUT_MS),
     });
@@ -134,7 +134,21 @@ export async function rerankChunks(
     }
 
     // Cohere returns results sorted by relevance_score descending; keep that
-    // order, apply the threshold, and re-cap defensively.
+    // order, apply the SCOPE'S threshold, and re-cap defensively.
+    //
+    // profile.*, never the module-level RERANK_THRESHOLD / RERANK_TOP_N
+    // constants: those are general-education values kept only for the older
+    // tests that assert against them (see their @deprecated notes in
+    // scopes.ts). Using them here silently ran the clarification engine at
+    // general-education strictness — 0.30 instead of 0.45, top-4 instead of
+    // top-3 — inverting the precision-over-recall trade-off that scope
+    // exists to make, right beside a validated instrument.
+    //
+    // The defect was invisible for as long as it existed because
+    // COHERE_API_KEY was unset, so every request took fallbackBySimilarity()
+    // below, which reads profile correctly. It surfaced within minutes of
+    // enabling the key: a clarification query kept a chunk scoring 0.305,
+    // which its own threshold should have rejected outright.
     const kept: RerankedChunk[] = [];
     for (const r of results as {
       index?: number;
@@ -145,10 +159,10 @@ export async function rerankChunks(
         ? r.relevance_score
         : -1;
       const chunk = chunks[index];
-      if (!chunk || score < RERANK_THRESHOLD) continue;
+      if (!chunk || score < profile.rerankThreshold) continue;
       kept.push({ ...chunk, rerank_score: score });
     }
-    return kept.slice(0, RERANK_TOP_N);
+    return kept.slice(0, profile.rerankTopN);
   } catch (err) {
     console.warn(
       "rerank: Cohere call failed — degrading to cosine-similarity ordering:",
