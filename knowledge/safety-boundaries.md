@@ -4,6 +4,10 @@ citations: []
 title: Hard Boundaries for BATO's Assistants
 approved: true
 last_updated: 2026-07-08
+# Dual-scoped: the hard boundaries (no diagnosis, no personal risk estimates,
+# emergency-symptom escalation) bind BOTH assistants, so both must be able to
+# ground on them.
+scopes: [general_education, screening_clarification]
 topic_tags: [safety, boundaries, scope, emergency]
 ---
 

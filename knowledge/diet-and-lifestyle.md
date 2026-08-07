@@ -4,6 +4,7 @@ citations: [NIDDK, WHO, CDC, KDIGO]
 title: Diet and Lifestyle with CKD
 approved: true
 last_updated: 2026-07-08
+scopes: [general_education]
 topic_tags: [diet, food, lifestyle, prevention, kidney-health]
 ---
 

@@ -8,10 +8,11 @@
 // What it does (non-dry-run):
 //   1. Reads every knowledge/*.md file except REVIEW-FLAGS.md.
 //   2. Chunks each file with scripts/chunker.ts. Any file whose front-matter
-//      is missing/unapproved `source` or `approved: true` causes
-//      chunkMarkdownDocument() to throw — that file (and the whole run) is
-//      HARD-REJECTED; nothing is embedded or written until every file is
-//      valid, so a partially-broken corpus can never be ingested.
+//      is missing/unapproved `source`, missing `approved: true`, or missing
+//      a valid non-empty `scopes` list causes chunkMarkdownDocument() to
+//      throw — that file (and the whole run) is HARD-REJECTED; nothing is
+//      embedded or written until every file is valid, so a partially-broken
+//      corpus can never be ingested.
 //   3. Scans every chunk for diet/clinical numeric content (mg/dL, mL/min,
 //      mmHg, %, nutrient amounts, eGFR/creatinine/sensitivity-style figures)
 //      and cross-references knowledge/REVIEW-FLAGS.md: a flagged chunk whose
@@ -141,8 +142,15 @@ const CLINICAL_UNIT_PATTERN =
 
 // Clinical/statistical keywords that are only sensitive when paired with an
 // actual number nearby (e.g. "eGFR 90", "sensitivity ~92%", "cutoff of 4").
+//
+// `age` is on this list because the SCORED age thresholds (50 / 60 / 70+)
+// are exactly the kind of number that drives what BATO tells a user — see
+// REVIEW-FLAGS.md §3. It was caught incidentally while the nine risk factors
+// shared one chunk with the accuracy percentages; splitting them into one
+// section per factor (2026-08-06) isolated it, and without this keyword the
+// age chunk would pass the net unflagged.
 const CLINICAL_KEYWORD_NEAR_NUMBER =
-  /\b(eGFR|GFR|creatinine|albumin|ACR|uACR|sensitivity|specificity|PPV|NPV|cutoff|threshold|blood\s+pressure|A1C|HbA1c)\b[\s\S]{0,40}?\d/i;
+  /\b(eGFR|GFR|creatinine|albumin|ACR|uACR|sensitivity|specificity|PPV|NPV|cutoff|threshold|blood\s+pressure|A1C|HbA1c|age)\b[\s\S]{0,40}?\d/i;
 
 // Diet/nutrient keywords are only flagged when a specific quantity is given
 // alongside them — purely qualitative diet guidance ("less salt", "may be
@@ -323,9 +331,16 @@ async function main() {
         // pgvector accepts the bracketed text form; stringify the float array.
         embedding: JSON.stringify(embedding),
         topic_tags: chunk.topic_tags,
+        // Validated by the chunker and re-checked by the column's CHECK
+        // constraint. No default exists on either side: an untagged chunk
+        // fails loudly rather than landing in the wrong corpus.
+        scopes: chunk.scopes,
         last_updated: now,
       });
-      console.log(`  embedded: ${chunk.source} — ${chunk.heading_path}`);
+      console.log(
+        `  embedded: ${chunk.source} — ${chunk.heading_path} ` +
+          `[${chunk.scopes.join(", ")}]`,
+      );
     }
   }
 

@@ -4,6 +4,7 @@ citations: [NIDDK, KDIGO, CDC, WHO]
 title: CKD Basics — What the Kidneys Do and What CKD Is
 approved: true
 last_updated: 2026-07-08
+scopes: [general_education]
 topic_tags: [ckd, kidneys, basics, definition]
 ---
 
