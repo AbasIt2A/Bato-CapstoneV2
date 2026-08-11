@@ -117,10 +117,14 @@ function envNumber(name: string, fallback: number): number {
  * because phrasing a term as a question costs ~0.03 cosine.
  *
  * Two things were changed together, and the second is what actually fixed
- * it. The floor came down to 0.57, and knowledge/screening-and-scored.md
- * was restructured from one 1429-char chunk covering all nine SCORED
- * variables into one H2 section PER variable — nine terms sharing one
- * embedding diluted every one of them.
+ * it. The floor came down to 0.57, and the screening file was restructured
+ * from one 1429-char chunk covering all nine SCORED variables into one H2
+ * section PER variable — nine terms sharing one embedding diluted every one
+ * of them. (That file has since split by provenance into
+ * knowledge/official-health-body/niddk/screening-and-risk-factors.md and
+ * knowledge/peer-reviewed/scored/scored-instrument.md. The nine sections
+ * moved verbatim and only `content` is embedded, so the numbers below still
+ * hold; the one-H2-per-variable constraint now applies to both files.)
  *
  * Measured after the restructure, top cosine per term in this scope:
  *   peripheral vascular disease 0.791 (was 0.569, and previously matched

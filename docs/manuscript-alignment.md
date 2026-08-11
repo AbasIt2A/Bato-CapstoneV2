@@ -20,7 +20,10 @@ relevant is found, the chatbot declines instead of guessing.
 ## 2. Markdown-based knowledge store
 
 Each approved source document is a human-readable **markdown file** under
-`knowledge/`, with a front-matter block recording its source authority, title,
+`knowledge/` — filed in a folder per source category (`official-health-body/`,
+`clinical-guidelines/`, `peer-reviewed/`) and per publishing body beneath it, so
+the inclusion framework is visible in the tree itself — with a front-matter
+block recording its source authority, title,
 approval status, and last-updated date. Chunking follows the document's own
 heading structure (H2 topic sections, H3 subsections kept with their parent),
 so a staging table or symptom list stays intact in one chunk. Every stored

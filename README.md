@@ -104,7 +104,7 @@ chase hit rate re-introduces exactly the failure it was built to avoid.
 | Path | What it is |
 |---|---|
 | `supabase/migrations/` | pgvector + `knowledge_chunks` table + `match_knowledge_chunks` RPC (deny-by-default RLS) |
-| `knowledge/*.md` | Curated source documents (front-matter provenance + heading hierarchy). Approved sources only |
+| `knowledge/**/*.md` | Curated source documents (front-matter provenance + heading hierarchy), filed by inclusion-framework category: `official-health-body/<body>/`, `clinical-guidelines/<body>/`, `peer-reviewed/`. Approved sources only; the folder documents provenance, front-matter `source` still defines it |
 | `knowledge/REVIEW-FLAGS.md` | Adviser-review ledger for diet/clinical-value content |
 | `scripts/chunker.ts` | Pure markdown-header chunker (H2 boundaries, H3 kept with parent, small overlap on long sections) |
 | `scripts/ingest-knowledge.ts` | One-time embed + insert script. **Checkpoint-gated — do not run without approval** |

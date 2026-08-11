@@ -1,10 +1,13 @@
 // General CKD Chatbot — Edge Function (hardened-RAG spec §12).
 //
-// Free-form, topic-constrained conversational assistant. Single-turn and
-// stateless in this standalone build (no chat-session persistence). Grounds
-// every answer in retrieval, never in a baked-in knowledge base:
+// Free-form, topic-constrained conversational assistant. Stateless on the
+// SERVER (no chat-session persistence): the client sends the recent turns
+// with each request, and nothing about the conversation is stored here.
+// Grounds every answer in retrieval, never in a baked-in knowledge base:
 //
-//   (1) input gate classifies in_scope + injection_detected;
+//   (1) input gate classifies in_scope + injection_detected, and — when the
+//       request carries history — resolves the message into a question that
+//       stands alone;
 //   (2) embed the query ONCE — reused by (2a) and (3);
 //   (2a) semantic answer-cache probe; a hit returns immediately, spending no
 //        generation quota (see _shared/answer-cache.ts);
@@ -25,9 +28,26 @@
 // Every infrastructure failure (embedding, RPC, generation) degrades to the
 // deflection with a server-side log — never a raw 500 with internals.
 //
-// POST { message: string } → { reply, sources, deflected }
+// ===== ONE RESOLVED QUESTION, USED EVERYWHERE =====
+//
+// Steps 2 onward run on the RESOLVED question — the gate's rewrite when there
+// was one, the raw message otherwise — and never on a mixture of the two. A
+// follow-up like "how bad is this?" is unusable on its own at every one of
+// those stages: it embeds to nothing useful, and as a cache key it is
+// actively dangerous, because the same three words mean something different
+// in every conversation that contains them. Keying the cache on the resolved
+// question is what stops one conversation's answer being served into
+// another's.
+//
+// POST { message: string, history?: {role, text}[] }
+//   → { reply, sources, deflected }
 
-import { classifyQuery, type GateVerdict } from "../_shared/gate.ts";
+import {
+  classifyQuery,
+  type ConversationTurn,
+  type GateVerdict,
+  normalizeHistory,
+} from "../_shared/gate.ts";
 import {
   embedForCache,
   embedQuery,
@@ -95,7 +115,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  let body: { message?: unknown };
+  let body: { message?: unknown; history?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -110,6 +130,11 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Message is too long" }, 400);
   }
 
+  // Optional, unverified, and validated rather than trusted: malformed
+  // history degrades to no history, which is simply the single-turn request
+  // this endpoint accepted before. See the security note in gate.ts.
+  const history: ConversationTurn[] = normalizeHistory(body.history);
+
   try {
     const supabase = createServiceClient();
 
@@ -118,7 +143,7 @@ Deno.serve(async (req) => {
     // this route from ever surfacing a raw 500.
     let verdict: GateVerdict;
     try {
-      verdict = await classifyQuery(message);
+      verdict = await classifyQuery(message, SCOPE, history);
     } catch (err) {
       console.warn(
         "general-chat: gate threw unexpectedly — failing open:",
@@ -129,6 +154,17 @@ Deno.serve(async (req) => {
     if (!verdict.in_scope || verdict.injection_detected) {
       console.warn("general-chat: gate blocked message:", verdict.reason);
       return deflect();
+    }
+
+    // The question every later stage works from. Falls back to the raw
+    // message whenever there was no history, the gate failed open, or the
+    // rewrite did not survive sanitizeRewrite() — in all three cases the
+    // pipeline behaves exactly as the single-turn version did.
+    const question = verdict.standalone_question ?? message;
+    if (question !== message) {
+      console.info(
+        `general-chat: resolved follow-up in context — "${message}" → "${question}"`,
+      );
     }
 
     // Serves a cache hit. Runs only AFTER the gate, so nothing the gate would
@@ -152,7 +188,7 @@ Deno.serve(async (req) => {
     // (2a) TIER 1 — exact match on the normalised question. Deliberately
     // before any embedding: it needs none, cannot false-hit, and catches the
     // repeat pattern that actually dominates a scripted evaluation session.
-    const exact = await lookupExactAnswer(supabase, message, SCOPE);
+    const exact = await lookupExactAnswer(supabase, question, SCOPE);
     if (exact) {
       await recordCacheHit(supabase, exact.id);
       return serveCached(exact);
@@ -167,8 +203,8 @@ Deno.serve(async (req) => {
     let cacheEmbedding: number[];
     try {
       [embedding, cacheEmbedding] = await Promise.all([
-        embedQuery(message),
-        embedForCache(message),
+        embedQuery(question),
+        embedForCache(question),
       ]);
     } catch (err) {
       console.error("general-chat: embedding failed — deflecting:", err);
@@ -188,7 +224,7 @@ Deno.serve(async (req) => {
     // from (2b). Infrastructure failure here maps to a deflection.
     let candidates: RetrievedChunk[];
     try {
-      candidates = await retrieveChunks(supabase, message, SCOPE, embedding);
+      candidates = await retrieveChunks(supabase, question, SCOPE, embedding);
     } catch (err) {
       console.error("general-chat: retrieval failed — deflecting:", err);
       return deflect();
@@ -196,7 +232,7 @@ Deno.serve(async (req) => {
 
     // (4) Rerank to the top-N above the relevance threshold. Never throws;
     // an empty result means nothing grounds this question.
-    const reranked = await rerankChunks(message, candidates, SCOPE);
+    const reranked = await rerankChunks(question, candidates, SCOPE);
     if (reranked.length === 0) {
       console.warn(
         "general-chat: no chunks cleared the rerank threshold — deflecting",
@@ -212,7 +248,7 @@ Deno.serve(async (req) => {
     try {
       draft = await generateReply({
         systemPrompt: GENERAL_CHAT_SYSTEM_PROMPT,
-        message: buildGroundedUserMessage(message, reranked),
+        message: buildGroundedUserMessage(question, reranked),
         // Selects this chatbot's own generation model, kept distinct from
         // the clarification engine's so the two do not share one free-tier
         // daily allowance (see generationModelFor in gemini.ts).
@@ -258,7 +294,7 @@ Deno.serve(async (req) => {
     // question simply regenerates.
     await storeAnswer(supabase, {
       scope: SCOPE,
-      question: message,
+      question,
       // The SEMANTIC_SIMILARITY vector, matching what tier 2 queries against.
       embedding: cacheEmbedding,
       reply: draft,

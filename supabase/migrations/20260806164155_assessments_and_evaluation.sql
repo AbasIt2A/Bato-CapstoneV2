@@ -1,7 +1,11 @@
--- BATO — Risk Assessment + chat schema, ported from the original capstone
--- project (supabase/migrations/20260703000001_initial_schema.sql) so this
--- standalone build no longer depends on a second Supabase project for the
--- screening/clarify Edge Functions.
+-- BATO — Risk Assessment + evaluation schema, ported from the original
+-- capstone project (supabase/migrations/20260703000001_initial_schema.sql) so
+-- this standalone build no longer depends on a second Supabase project for
+-- the screening/clarify Edge Functions.
+--
+-- Originally named "assessments_and_chat". The chat_sessions / chat_messages
+-- tables it carried were removed on 2026-08-10 — unused by every source file
+-- and absent from the deployed database. See the note where they used to be.
 --
 -- Identity: Supabase Auth (auth.users) is the source of truth. Anonymous
 -- sign-ins are enabled, so every visitor — including account-less ones —
@@ -70,44 +74,26 @@ create index assessment_responses_assessment_id_idx
   on public.assessment_responses (assessment_id);
 
 -- ---------------------------------------------------------------------------
--- chat_sessions / chat_messages — logs for both chatbots
+-- REMOVED 2026-08-10 — chat_sessions / chat_messages
+--
+-- These two tables were ported over with the rest of the schema and never
+-- used. Three independent facts agree on that:
+--
+--   * no source file in the repository references either table — not the
+--     clarify Edge Function this comment originally claimed owned them, not
+--     general-chat, not the frontend;
+--   * neither exists in the deployed database. The 20260808000000 baseline
+--     did not carry them, so the schema this file described had already
+--     diverged from the schema that actually runs;
+--   * nothing was lost by their absence, because nothing ever wrote to them.
+--
+-- Dropping the DDL here brings this file back into agreement with the
+-- deployed database rather than leaving a fresh `supabase db push` to create
+-- two empty tables plus their RLS policies for no reason. If conversation
+-- logging is wanted later, it should be designed against the retention and
+-- consent requirements in the manuscript (RA 10173), not resurrected from a
+-- port that predates them.
 -- ---------------------------------------------------------------------------
-create table public.chat_sessions (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users (id) on delete set null,
-  assessment_id uuid references public.assessments (id) on delete set null,
-  chatbot_type text not null check (
-    chatbot_type in ('risk_assessment_clarification', 'general_ckd')
-  ),
-  started_at timestamptz not null default now(),
-  -- assessment_id is non-null only for Clarification Engine sessions. The
-  -- General CKD Chatbot is stateless in this build and never opens one.
-  constraint assessment_link_matches_chatbot_type check (
-    (chatbot_type = 'risk_assessment_clarification' and assessment_id is not null)
-    or (chatbot_type = 'general_ckd' and assessment_id is null)
-  )
-);
-
-comment on table public.chat_sessions is
-  'Chat logs. Currently used only by the Risk Assessment Chatbot''s '
-  'Clarification Engine (functions/clarify) — the General CKD Chatbot is '
-  'single-turn and stateless in this build.';
-
-create index chat_sessions_user_id_idx on public.chat_sessions (user_id);
-create index chat_sessions_assessment_id_idx
-  on public.chat_sessions (assessment_id);
-
-create table public.chat_messages (
-  id uuid primary key default gen_random_uuid(),
-  chat_session_id uuid not null
-    references public.chat_sessions (id) on delete cascade,
-  role text not null check (role in ('user', 'assistant')),
-  content text not null,
-  created_at timestamptz not null default now()
-);
-
-create index chat_messages_chat_session_id_idx
-  on public.chat_messages (chat_session_id);
 
 -- ---------------------------------------------------------------------------
 -- evaluation_responses — SUS / TAM / TiMT capture
@@ -127,7 +113,7 @@ create index evaluation_responses_user_id_idx
 -- ---------------------------------------------------------------------------
 -- Row-Level Security (RA 10173)
 --
--- Model: all writes to screening and chat tables happen server-side in Edge
+-- Model: all writes to the screening tables happen server-side in Edge
 -- Functions using the service role (which bypasses RLS). Browser clients get
 -- read-only access to their own rows, plus direct insert on
 -- evaluation_responses (the one flow with no server-side logic).
@@ -135,8 +121,6 @@ create index evaluation_responses_user_id_idx
 -- ---------------------------------------------------------------------------
 alter table public.assessments enable row level security;
 alter table public.assessment_responses enable row level security;
-alter table public.chat_sessions enable row level security;
-alter table public.chat_messages enable row level security;
 alter table public.evaluation_responses enable row level security;
 
 create policy "Users can read their own assessments"
@@ -152,22 +136,6 @@ create policy "Users can read responses of their own assessments"
       select 1 from public.assessments a
       where a.id = assessment_id
         and a.user_id = (select auth.uid())
-    )
-  );
-
-create policy "Users can read their own chat sessions"
-  on public.chat_sessions for select
-  to authenticated
-  using (user_id = (select auth.uid()));
-
-create policy "Users can read messages of their own chat sessions"
-  on public.chat_messages for select
-  to authenticated
-  using (
-    exists (
-      select 1 from public.chat_sessions s
-      where s.id = chat_session_id
-        and s.user_id = (select auth.uid())
     )
   );
 

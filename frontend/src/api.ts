@@ -17,10 +17,26 @@ export interface ChatResponse {
 // Mirrors MAX_MESSAGE_LENGTH in supabase/functions/general-chat/index.ts.
 export const MAX_MESSAGE_LENGTH = 2000;
 
+/** One earlier turn, sent so the backend can read a follow-up in context. */
+export interface HistoryTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+/**
+ * Exchanges of history sent with each message. Mirrors MAX_HISTORY_TURNS
+ * (6 turns) in supabase/functions/_shared/gate.ts — the server trims to that
+ * anyway, so sending more only wastes bandwidth.
+ */
+export const HISTORY_EXCHANGES = 3;
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export async function askGeneralChat(message: string): Promise<ChatResponse> {
+export async function askGeneralChat(
+  message: string,
+  history: HistoryTurn[] = [],
+): Promise<ChatResponse> {
   if (!SUPABASE_URL || !ANON_KEY) {
     throw new Error(
       "Frontend is not configured — copy frontend/.env.example to frontend/.env " +
@@ -35,7 +51,7 @@ export async function askGeneralChat(message: string): Promise<ChatResponse> {
       Authorization: `Bearer ${ANON_KEY}`,
       apikey: ANON_KEY,
     },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, history }),
   });
 
   const data: unknown = await res.json().catch(() => null);

@@ -22,11 +22,34 @@ export const USER_QUESTION_BEGIN =
   "===== BEGIN UNTRUSTED USER QUESTION =====";
 export const USER_QUESTION_END = "===== END UNTRUSTED USER QUESTION =====";
 
+/**
+ * Conversation-history region, used ONLY by the input gate (gate.ts) when a
+ * request carries earlier turns. The generator never receives history — it
+ * sees retrieved chunks and one question, exactly as before — so these tokens
+ * appear in no prompt in prompts.ts.
+ *
+ * They live here anyway, beside the other four, because this module owns the
+ * delimiter vocabulary: a token defined elsewhere would not be neutralized in
+ * untrusted text, and a forged copy could then break out of its region.
+ */
+export const CONVERSATION_BEGIN =
+  "===== BEGIN UNTRUSTED CONVERSATION SO FAR =====";
+export const CONVERSATION_END =
+  "===== END UNTRUSTED CONVERSATION SO FAR =====";
+export const CURRENT_MESSAGE_BEGIN =
+  "===== BEGIN UNTRUSTED CURRENT MESSAGE =====";
+export const CURRENT_MESSAGE_END =
+  "===== END UNTRUSTED CURRENT MESSAGE =====";
+
 const DELIMITER_TOKENS: readonly string[] = [
   RETRIEVED_DATA_BEGIN,
   RETRIEVED_DATA_END,
   USER_QUESTION_BEGIN,
   USER_QUESTION_END,
+  CONVERSATION_BEGIN,
+  CONVERSATION_END,
+  CURRENT_MESSAGE_BEGIN,
+  CURRENT_MESSAGE_END,
 ];
 
 function escapeRegExp(value: string): string {

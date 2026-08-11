@@ -33,7 +33,7 @@ source of every claim. If the question is off-topic, or nothing relevant is
 found, the bot returns a polite **deflection** instead of guessing.
 
 ```
-knowledge/*.md ──chunk──> chunks ──embed──> vectors ──store──> Postgres (pgvector)
+knowledge/**/*.md ──chunk──> chunks ──embed──> vectors ──store──> Postgres (pgvector)
 
 user question ──> [gate: on-topic? safe?] ──> embed ──> retrieve similar chunks
                         │ no                                     │
@@ -54,7 +54,7 @@ keeps the bot on-topic and makes it much harder to trick.
 
 | Path | What it is |
 |---|---|
-| `knowledge/*.md` | The knowledge base: 8 curated CKD markdown files (approved sources only) |
+| `knowledge/**/*.md` | The knowledge base: 9 curated CKD markdown files (approved sources only), filed by source category — `official-health-body/{doh,who,niddk}/`, `clinical-guidelines/kdigo/`, `peer-reviewed/` |
 | `knowledge/REVIEW-FLAGS.md` | Ledger of clinical/diet numbers awaiting adviser review |
 | `scripts/chunker.ts` | Splits markdown into chunks along headings |
 | `scripts/ingest-knowledge.ts` | Embeds the chunks and inserts them into the database (⛔ gated) |
@@ -137,11 +137,13 @@ deno task ingest:dry
 ```
 
 This is a **dry run**: no network, no database — it just chunks the knowledge
-files and prints a stats table. Expected: **21 chunks across 8 files**, with
-**4 chunks flagged**. Each table row is one chunk: its file, heading path, and
-size. "Flagged" means the chunk contains diet or clinical numbers (like eGFR
-thresholds or nutrient amounts) that need adviser review before going live. All
-4 flags are already tracked in `knowledge/REVIEW-FLAGS.md` — the dry run prints
+files and prints a stats table. Expected: **34 chunks across 9 files**, with
+**5 chunks flagged**. Each file is listed by its path under `knowledge/` (e.g.
+`official-health-body/who/statistics-and-burden.md`), and each table row is one
+chunk: its file, heading path, and size. "Flagged" means the chunk contains diet
+or clinical numbers (like eGFR thresholds or nutrient amounts) that need adviser
+review before going live. All
+5 flags are already tracked in `knowledge/REVIEW-FLAGS.md` — the dry run prints
 them every time so a human always sees what clinical content is about to be
 embedded.
 

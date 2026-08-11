@@ -1,6 +1,11 @@
 # Secrets — never commit
 .env
 
+# Scraped source material — third-party copyrighted text, and machine output.
+# Nothing here is corpus: curated documents are moved under knowledge/ by hand
+# after adviser sign-off, and those ARE committed.
+scraped/
+
 # Supabase CLI local state
 supabase/.temp/
 supabase/.env

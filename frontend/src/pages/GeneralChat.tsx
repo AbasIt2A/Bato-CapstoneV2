@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   askGeneralChat,
+  HISTORY_EXCHANGES,
+  type HistoryTurn,
   MAX_MESSAGE_LENGTH,
   type SourceCitation,
 } from "../api";
@@ -27,6 +29,28 @@ const STARTERS = [
   "Does PhilHealth cover dialysis?",
 ];
 
+/**
+ * The recent exchanges to send with the next message, so the backend can read
+ * a follow-up ("how bad is this?") in context.
+ *
+ * Only COMPLETED exchanges count — a user turn whose reply was a deflection
+ * or an error is dropped along with that reply. Two reasons: a refusal
+ * carries no subject to inherit, and keeping the message that caused it would
+ * let one blocked turn keep tainting every later one.
+ */
+function recentHistory(turns: Turn[]): HistoryTurn[] {
+  const history: HistoryTurn[] = [];
+  for (let i = 0; i + 1 < turns.length; i++) {
+    const user = turns[i];
+    const bot = turns[i + 1];
+    if (user.role !== "user" || bot.role !== "bot") continue;
+    if (bot.deflected || bot.error) continue;
+    history.push({ role: "user", text: user.text });
+    history.push({ role: "assistant", text: bot.text });
+  }
+  return history.slice(-HISTORY_EXCHANGES * 2);
+}
+
 export default function GeneralChat() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -46,9 +70,12 @@ export default function GeneralChat() {
     if (!message || sending) return;
     setInput("");
     setSending(true);
+    // Snapshot the history BEFORE appending this turn — the message being
+    // sent is not part of its own context.
+    const history = recentHistory(turns);
     setTurns((t) => [...t, { role: "user", text: message }]);
     try {
-      const res = await askGeneralChat(message);
+      const res = await askGeneralChat(message, history);
       setTurns((t) => [
         ...t,
         {

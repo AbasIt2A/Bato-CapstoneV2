@@ -88,6 +88,65 @@ export const SOURCES: readonly SourceInfo[] = [
     name: "Bang et al., 2007 (SCORED study, JAMA Internal Medicine)",
     category: "peer_reviewed",
   },
+
+  // --- Admitted 2026-08-10 with the Top 20 source list (SOURCES.md). See
+  // 20260810000001_register_top20_sources.sql for the category rationale,
+  // including the two arguable placements (ISN, APSN). ---------------------
+
+  // PHCOI (Philippine cost-of-illness) and GBD (Lancet 2023 burden) were
+  // registered here on 2026-08-10 and REMOVED from public.knowledge_sources
+  // on 2026-08-11 — neither can be fetched (a Taylor & Francis paywall and a
+  // Lancet page whose article never renders), so neither will ever have a
+  // chunk to attribute. They are dropped from this mirror to match the
+  // register, which is the authority. To reinstate one: obtain the text,
+  // re-run the insert in 20260810145929_register_top20_sources.sql for that
+  // ID, restore the entry here, and clear `excluded` in the scrape manifest.
+  {
+    // Local care pathway, PhilHealth coverage and dialysis access context.
+    id: "PHESRD",
+    name:
+      "Gaps and Challenges in the Treatment of End-Stage Renal Disease in " +
+      "the Philippines (PMC10544423, 2023)",
+    category: "peer_reviewed",
+  },
+  {
+    // NOT PSN. The Philippine Society of Hypertension publishes the local BP
+    // guidance; the Philippine Society of NEPHROLOGY is a separate registered
+    // source. Adjacent acronyms, different bodies — do not cross-attribute.
+    id: "PSH",
+    name: "Philippine Society of Hypertension",
+    category: "clinical_guideline",
+  },
+  {
+    id: "CHEN2019",
+    name:
+      "Chen, Knicely & Grams, 2019 (Chronic Kidney Disease Diagnosis and " +
+      "Management, JAMA)",
+    category: "peer_reviewed",
+  },
+  {
+    id: "NICE",
+    name: "National Institute for Health and Care Excellence (UK)",
+    category: "clinical_guideline",
+  },
+  {
+    id: "KDOQI",
+    name:
+      "Kidney Disease Outcomes Quality Initiative (National Kidney Foundation)",
+    category: "clinical_guideline",
+  },
+  {
+    // The Global Kidney Health Atlas is a capacity survey rather than a
+    // guideline; filed here as a peer nephrology body. See the migration.
+    id: "ISN",
+    name: "International Society of Nephrology (Global Kidney Health Atlas)",
+    category: "clinical_guideline",
+  },
+  {
+    id: "APSN",
+    name: "Asian Pacific Society of Nephrology",
+    category: "clinical_guideline",
+  },
 ] as const;
 
 /** The ONLY approved source IDs. Reject anything not in this list. */

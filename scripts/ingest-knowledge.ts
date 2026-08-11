@@ -6,7 +6,13 @@
 // call may happen, until the human approves at the Phase 2 checkpoint.
 //
 // What it does (non-dry-run):
-//   1. Reads every knowledge/*.md file except REVIEW-FLAGS.md.
+//   1. Reads every markdown file under knowledge/ (recursively, at any depth)
+//      except REVIEW-FLAGS.md. The directory tree mirrors the inclusion
+//      framework — official-health-body/<body>/, clinical-guidelines/<body>/,
+//      peer-reviewed/ — but the tree is documentation for humans only: a
+//      chunk's provenance still comes solely from its file's front-matter
+//      `source`, never from its path, so a misfiled document is caught by
+//      front-matter review, not silently re-attributed.
 //   2. Chunks each file with scripts/chunker.ts. Any file whose front-matter
 //      is missing/unapproved `source`, missing `approved: true`, or missing
 //      a valid non-empty `scopes` list causes chunkMarkdownDocument() to
@@ -53,18 +59,40 @@ const DRY_RUN = Deno.args.includes("--dry-run");
 // ---------------------------------------------------------------------------
 
 interface LoadedFile {
+  /** Path relative to knowledge/, e.g. official-health-body/who/foo.md.
+   * Forward slashes on every platform so console output and the
+   * REVIEW-FLAGS.md cross-reference read the same everywhere. */
   filename: string;
   text: string;
 }
 
-async function loadKnowledgeFiles(): Promise<LoadedFile[]> {
-  const names: string[] = [];
-  for await (const entry of Deno.readDir(KNOWLEDGE_DIR)) {
+/** Collects every *.md path under `dir` (recursively), relative to
+ * knowledge/. REVIEW-FLAGS.md is the ledger, not corpus content, so it is
+ * skipped wherever it appears. */
+async function collectMarkdownPaths(
+  dir: URL,
+  prefix: string,
+  out: string[],
+): Promise<void> {
+  const entries = [];
+  for await (const entry of Deno.readDir(dir)) entries.push(entry);
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory) {
+      await collectMarkdownPaths(new URL(`${entry.name}/`, dir), relative, out);
+      continue;
+    }
     if (!entry.isFile) continue;
     if (!entry.name.toLowerCase().endsWith(".md")) continue;
     if (entry.name === REVIEW_FLAGS_FILENAME) continue;
-    names.push(entry.name);
+    out.push(relative);
   }
+}
+
+async function loadKnowledgeFiles(): Promise<LoadedFile[]> {
+  const names: string[] = [];
+  await collectMarkdownPaths(KNOWLEDGE_DIR, "", names);
   names.sort();
   const files: LoadedFile[] = [];
   for (const name of names) {
@@ -87,7 +115,11 @@ async function loadReviewFlagsDocumentedFiles(): Promise<Set<string>> {
     return new Set();
   }
   const documented = new Set<string>();
-  const re = /knowledge\/([A-Za-z0-9._-]+\.md)/g;
+  // Paths are nested now (knowledge/<category>/<body>/<file>.md), so the
+  // captured group spans slashes. A stale flat reference simply fails to
+  // match, which blocks ingestion rather than waving the file through —
+  // the fail-safe direction.
+  const re = /knowledge\/([A-Za-z0-9._\-\/]+\.md)/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
     documented.add(match[1]);
@@ -236,6 +268,67 @@ function printStatsTable(chunked: ChunkedFile[], flagged: FlaggedChunk[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Embedding rate control
+//
+// The free tier meters embeddings at 100 requests per minute per model, and
+// this corpus is already larger than that. The first full ingestion run blew
+// the quota around chunk 100 of 121 and aborted.
+//
+// It aborted harmlessly, and that is worth stating because it is a property
+// of the ordering above rather than luck: every chunk is embedded into `rows`
+// BEFORE the delete-and-insert, so a failure anywhere in the embedding pass
+// leaves the live table untouched. Keep that ordering — moving the delete
+// earlier would turn a quota error into an emptied corpus.
+//
+// Pacing goes here rather than in _shared/embeddings.ts because that module
+// is also on the live query path, where a deliberate sleep before every
+// request would add latency to user-facing retrieval for no benefit. The
+// batch caller is the one with a rate problem, so the batch caller solves it.
+// ---------------------------------------------------------------------------
+
+/** ~85 requests/minute, comfortably under the 100/min free-tier ceiling. */
+const EMBED_MIN_INTERVAL_MS = 700;
+
+/** How many times to retry a single chunk that hits the quota. */
+const EMBED_MAX_ATTEMPTS = 5;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Embeds one chunk, waiting out quota errors rather than failing the run.
+ *
+ * Google states the wait in the error body ("retryDelay": "27s"). Reading it
+ * beats guessing — the same lesson the scraper learned against Firecrawl,
+ * where blind exponential backoff was shorter than the stated window and
+ * burned every retry without ever waiting long enough.
+ */
+async function embedWithRetry(text: string): Promise<number[]> {
+  for (let attempt = 1; attempt <= EMBED_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await embedText({ text, taskType: "RETRIEVAL_DOCUMENT" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const isQuota = /\b429\b/.test(message) ||
+        /RESOURCE_EXHAUSTED/i.test(message);
+      if (!isQuota || attempt === EMBED_MAX_ATTEMPTS) throw err;
+
+      const stated = /"retryDelay":\s*"(\d+(?:\.\d+)?)s"/.exec(message);
+      // Server's number plus slack, so we do not land on the boundary and
+      // immediately hit the same limit again.
+      const waitMs = stated ? Number(stated[1]) * 1000 + 3000 : 35_000;
+      console.warn(
+        `  quota reached — waiting ${Math.round(waitMs / 1000)}s ` +
+          `(attempt ${attempt}/${EMBED_MAX_ATTEMPTS})`,
+      );
+      await delay(waitMs);
+    }
+  }
+  throw new Error("embedWithRetry: exhausted attempts without returning");
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -317,12 +410,16 @@ async function main() {
 
   const now = new Date().toISOString();
   const rows: Record<string, unknown>[] = [];
+  let embedded = 0;
   for (const file of chunked) {
     for (const chunk of file.chunks) {
-      const embedding = await embedText({
-        text: chunk.content,
-        taskType: "RETRIEVAL_DOCUMENT",
-      });
+      // Pace every call after the first. Without this the run dies partway
+      // through: the free tier allows 100 embedding requests per minute and
+      // this corpus is already past that, so an unpaced loop exhausts the
+      // quota around chunk 100 and throws.
+      if (embedded > 0) await delay(EMBED_MIN_INTERVAL_MS);
+      const embedding = await embedWithRetry(chunk.content);
+      embedded++;
       rows.push({
         source: chunk.source,
         title: chunk.title,
@@ -338,8 +435,8 @@ async function main() {
         last_updated: now,
       });
       console.log(
-        `  embedded: ${chunk.source} — ${chunk.heading_path} ` +
-          `[${chunk.scopes.join(", ")}]`,
+        `  [${String(embedded).padStart(3)}/${totalChunks}] ${chunk.source} — ` +
+          `${chunk.heading_path} [${chunk.scopes.join(", ")}]`,
       );
     }
   }
@@ -366,6 +463,45 @@ async function main() {
   }
 
   console.log(`Done. Inserted ${data?.length ?? rows.length} chunks.`);
+
+  // ---------------------------------------------------------------------
+  // Invalidate the answer cache.
+  //
+  // A cached reply is served VERBATIM — it bypasses retrieval entirely, which
+  // is the whole point of the cache and also precisely why it cannot outlive
+  // the corpus it was grounded in. Every row in answer_cache was generated
+  // from the chunks that were just deleted, so leaving them in place means
+  // answering today's questions out of yesterday's evidence with no stage
+  // downstream able to notice.
+  //
+  // That is not hypothetical here: the corpus this run replaced held four
+  // distinct sources, and the one it installed holds thirteen, including the
+  // Philippine material (DOH, PHESRD, PSH) that a cached answer about local
+  // dialysis access could not possibly have cited.
+  //
+  // Dropping the rows costs nothing. A cache is a derived artefact — anything
+  // discarded is regenerated on the next ask, at the price of one generation
+  // call — whereas serving a stale grounded answer is a correctness failure.
+  // ---------------------------------------------------------------------
+  const { error: cacheError } = await supabase
+    .from("answer_cache")
+    .delete()
+    .not("id", "is", null);
+  if (cacheError) {
+    // Not fatal: the corpus is already correctly rebuilt, and a stale cache
+    // is a quality problem rather than a broken one. Say so loudly instead
+    // of failing a run that otherwise succeeded.
+    console.error(
+      `⚠ Failed to clear answer_cache: ${cacheError.message}\n` +
+        "  The corpus was rebuilt, but cached replies still reflect the OLD " +
+        "corpus. Clear public.answer_cache by hand before relying on results.",
+    );
+  } else {
+    console.log(
+      "Cleared answer_cache — cached replies were grounded in the previous " +
+        "corpus and would otherwise be served verbatim.",
+    );
+  }
 }
 
 if (import.meta.main) {

@@ -2,9 +2,13 @@
   "tasks": {
     "test": "deno test --allow-read --allow-env tests/",
     "test:live": "deno test --env-file=.env --allow-read --allow-env --allow-net tests/",
-    "check": "deno check supabase/functions/general-chat/index.ts supabase/functions/screening/index.ts supabase/functions/clarify/index.ts scripts/ingest-knowledge.ts scripts/chunker.ts scripts/check-providers.ts",
+    "check": "deno check supabase/functions/general-chat/index.ts supabase/functions/screening/index.ts supabase/functions/clarify/index.ts scripts/ingest-knowledge.ts scripts/chunker.ts scripts/check-providers.ts scripts/scrape-sources.ts scripts/clean-scraped.ts scripts/measure-clarification.ts",
     "check:providers": "deno run --env-file=.env --allow-env --allow-net scripts/check-providers.ts",
+    "scrape:plan": "deno run --allow-read scripts/scrape-sources.ts --plan",
+    "scrape": "deno run --env-file=.env --allow-env --allow-net --allow-read --allow-write scripts/scrape-sources.ts",
+    "clean": "deno run --allow-read --allow-write scripts/clean-scraped.ts",
     "ingest:dry": "deno run --allow-read scripts/ingest-knowledge.ts --dry-run",
-    "ingest": "deno run --env-file=.env --allow-read --allow-env --allow-net scripts/ingest-knowledge.ts"
+    "ingest": "deno run --env-file=.env --allow-read --allow-env --allow-net scripts/ingest-knowledge.ts",
+    "measure:clarify": "deno run --env-file=.env --allow-env --allow-net scripts/measure-clarification.ts"
   }
 }
