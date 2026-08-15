@@ -6,6 +6,7 @@ import {
   MAX_MESSAGE_LENGTH,
   type SourceCitation,
 } from "../api";
+import { linkHost, sourceReference } from "../lib/source-links";
 
 interface BotTurn {
   role: "bot";
@@ -49,6 +50,45 @@ function recentHistory(turns: Turn[]): HistoryTurn[] {
     history.push({ role: "assistant", text: bot.text });
   }
   return history.slice(-HISTORY_EXCHANGES * 2);
+}
+
+/**
+ * One attribution chip.
+ *
+ * A link when the source has a public page, a plain chip when it does not
+ * (see lib/source-links.ts — AstraZeneca's licensed patient card has none).
+ * The tooltip names the publisher and the passage either way, so the chip
+ * still says where a claim came from when it cannot say it with a URL.
+ */
+function SourceChip({ citation }: { citation: SourceCitation }) {
+  const ref = sourceReference(citation.source);
+  const passage = citation.heading_path
+    ? `${citation.title} — ${citation.heading_path}`
+    : citation.title;
+  const lines = [ref?.name, passage].filter(Boolean) as string[];
+
+  if (!ref?.url) {
+    return (
+      <span className="source-chip" title={lines.join("\n")}>
+        {citation.source}
+      </span>
+    );
+  }
+
+  return (
+    <a
+      className="source-chip"
+      href={ref.url}
+      target="_blank"
+      // noopener is the security half (the opened page cannot reach back
+      // through window.opener); noreferrer keeps the chat URL out of the
+      // publisher's referrer logs.
+      rel="noopener noreferrer"
+      title={[...lines, `Opens ${linkHost(ref.url)} in a new tab`].join("\n")}
+    >
+      {citation.source}
+    </a>
+  );
 }
 
 export default function GeneralChat() {
@@ -161,14 +201,9 @@ export default function GeneralChat() {
               <div className="bot-text">{turn.text}</div>
               {turn.sources.length > 0 && (
                 <div className="sources">
+                  <span className="sources-label">Sources</span>
                   {turn.sources.map((s, j) => (
-                    <span
-                      key={j}
-                      className="source-chip"
-                      title={`${s.title} — ${s.heading_path}`}
-                    >
-                      {s.source}
-                    </span>
+                    <SourceChip key={j} citation={s} />
                   ))}
                 </div>
               )}

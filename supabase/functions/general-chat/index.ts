@@ -13,9 +13,14 @@
 //        generation quota (see _shared/answer-cache.ts);
 //   (3) pgvector top-K on the query embedding;
 //   (4) rerank to top-N above threshold;
-//   (5) if none pass, return the approved deflection;
+//   (4b) if none pass, rephrase the question once and retry retrieval — the
+//        reranker scores personal phrasings poorly even when the corpus has
+//        the answer (see reformulateForRetrieval in _shared/gate.ts);
+//   (5) if that finds nothing either, return the approved deflection;
 //   (6) else generate with retrieved chunks as UNTRUSTED DATA, strictly
-//       separated from instructions, citing each source;
+//       separated from instructions, declaring the sources used on a final
+//       machine-readable line; verify that declaration, then strip it and any
+//       citation the model wrote into the prose (see _shared/citations.ts);
 //   (7) diagnostic-language filter — never let "you have CKD" reach a user;
 //   (8) output guard (injection fallout / groundedness) — cheap heuristic
 //       check before the reply ever reaches the user;
@@ -47,6 +52,7 @@ import {
   type ConversationTurn,
   type GateVerdict,
   normalizeHistory,
+  reformulateForRetrieval,
 } from "../_shared/gate.ts";
 import {
   embedForCache,
@@ -65,6 +71,12 @@ import {
   storeAnswer,
 } from "../_shared/answer-cache.ts";
 import { checkDraftAnswer } from "../_shared/output-guard.ts";
+import {
+  allowedCitationIds,
+  mentionsSourceId,
+  splitSourceFooter,
+  stripInlineCitations,
+} from "../_shared/citations.ts";
 import { filterAssistantReply } from "../_shared/topic-filter.ts";
 import {
   DEFLECTION_MESSAGE,
@@ -232,7 +244,44 @@ Deno.serve(async (req) => {
 
     // (4) Rerank to the top-N above the relevance threshold. Never throws;
     // an empty result means nothing grounds this question.
-    const reranked = await rerankChunks(question, candidates, SCOPE);
+    let reranked = await rerankChunks(question, candidates, SCOPE);
+
+    // (4b) SECOND-CHANCE RETRIEVAL. Nothing cleared the threshold, which has
+    // two very different causes: the corpus has no answer, or it has one and
+    // the question was phrased in a way the reranker scores poorly. Only the
+    // second is fixable, and it is common — a worried personal framing
+    // ("when should I be worried about going under dialysis treatment?")
+    // scored 0.292 against the very passage that answers it, where the plain
+    // form of the same question scored 0.682.
+    //
+    // So before deflecting, rephrase once and look again. If the corpus truly
+    // has nothing, the retry finds nothing either and the deflection stands —
+    // it costs one small Groq call on a request that was already lost.
+    //
+    // The reformulation is used for RETRIEVAL ONLY. Generation, the cache key
+    // and the reply all stay with the user's own question: rephrasing is a
+    // way to find passages, never a licence to answer something else.
+    if (reranked.length === 0) {
+      const reformulated = await reformulateForRetrieval(question);
+      if (reformulated) {
+        console.info(
+          `general-chat: nothing cleared rerank — retrying retrieval as "${reformulated}"`,
+        );
+        try {
+          const retryEmbedding = await embedQuery(reformulated);
+          const retryCandidates = await retrieveChunks(
+            supabase,
+            reformulated,
+            SCOPE,
+            retryEmbedding,
+          );
+          reranked = await rerankChunks(reformulated, retryCandidates, SCOPE);
+        } catch (err) {
+          console.warn("general-chat: second-chance retrieval failed:", err);
+        }
+      }
+    }
+
     if (reranked.length === 0) {
       console.warn(
         "general-chat: no chunks cleared the rerank threshold — deflecting",
@@ -259,33 +308,68 @@ Deno.serve(async (req) => {
       return deflect();
     }
 
+    // (6) Attribution. The model declares what it used on a final SOURCES
+    // line instead of naming sources mid-sentence; verify that declaration
+    // against what was actually retrieved, then strip it. A reply that
+    // declares nothing usable is treated exactly as an uncited reply always
+    // was — ungrounded, therefore deflected. See citations.ts for why the
+    // check could not simply be dropped.
+    const allowed = allowedCitationIds(reranked);
+    const split = splitSourceFooter(draft);
+    const cited = split.declared.filter((id) => allowed.includes(id));
+    if (cited.length === 0) {
+      console.warn(
+        `general-chat: reply declared no retrieved source (footer: ${
+          split.hasFooter ? split.declared.join(", ") || "empty" : "absent"
+        }) — deflecting`,
+      );
+      return deflect();
+    }
+    // Backstop for the prose rule: strip any citation the model wrote into
+    // the sentences anyway, so the reply reads the same way every time.
+    const reply = stripInlineCitations(split.visible);
+    if (!reply) {
+      console.warn("general-chat: reply was empty after removing its source line — deflecting");
+      return deflect();
+    }
+
     // (7) Diagnostic-language filter. Distinct from the output guard below:
     // this catches "you have CKD" reaching a user, which the groundedness/
     // injection guard does not check for at all.
-    const filtered = filterAssistantReply(draft);
+    const filtered = filterAssistantReply(reply);
     if (!filtered.ok) {
       console.warn("general-chat: diagnostic-language filter blocked reply:", filtered.blockedReason);
       return deflect();
     }
 
-    // (8) Output safety check — cheap heuristics, no model call. Pass this
-    // request's actually-retrieved sources so the groundedness/citation
-    // check judges the draft against what the generator was actually given.
+    // (8) Output safety check — cheap heuristics, no model call. Runs on the
+    // USER-VISIBLE text. requireCitation is off because step 6 already
+    // verified attribution: the visible prose is citation-free by design, so
+    // the in-text check would now reject every correct answer.
     const guard = checkDraftAnswer(
-      draft,
+      reply,
       GENERAL_CHAT_SYSTEM_PROMPT,
       reranked.map((c) => c.source),
+      { requireCitation: false },
     );
     if (!guard.safe) {
       console.warn("general-chat: output guard blocked reply:", guard.reason);
       return deflect();
     }
 
-    const sources: SourceCitation[] = reranked.map((c) => ({
-      source: c.source,
-      title: c.title,
-      heading_path: c.heading_path ?? null,
-    }));
+    // Chips show what the answer actually used, in the order the model
+    // declared it — not everything retrieval happened to return. Each is
+    // described by the passage it came from, so the tooltip still points at a
+    // real section of a real document.
+    const sources: SourceCitation[] = cited.map((id) => {
+      const chunk = reranked.find((c) => c.source === id) ??
+        reranked.find((c) => mentionsSourceId(c.content, id))!;
+      return {
+        source: id,
+        title: chunk.title,
+        heading_path: chunk.heading_path ?? null,
+      };
+    });
 
     // (9) Cache the finished reply. Reached ONLY here — past the rerank
     // threshold, the diagnostic filter and the output guard — so a deflection
@@ -297,13 +381,16 @@ Deno.serve(async (req) => {
       question,
       // The SEMANTIC_SIMILARITY vector, matching what tier 2 queries against.
       embedding: cacheEmbedding,
-      reply: draft,
+      // The cleaned, user-visible text — never the raw draft. A cached reply
+      // is served verbatim, so storing the draft would put the SOURCES line
+      // and any stripped citation back in front of a later user.
+      reply,
       sources,
       model: generationModelFor(SCOPE),
     });
 
     const response: ChatResponse = {
-      reply: draft,
+      reply,
       sources,
       deflected: false,
     };

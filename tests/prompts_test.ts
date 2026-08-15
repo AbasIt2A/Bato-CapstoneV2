@@ -8,6 +8,7 @@ import {
   DEFLECTION_MESSAGE,
   GENERAL_CHAT_SYSTEM_PROMPT,
 } from "../supabase/functions/_shared/prompts.ts";
+import { SOURCE_FOOTER_LABEL } from "../supabase/functions/_shared/citations.ts";
 
 function includesCI(haystack: string, needle: string): boolean {
   return haystack.toLowerCase().includes(needle.toLowerCase());
@@ -49,12 +50,29 @@ Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: untrusted-data language is present", () =
   assertEquals(includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "untrusted"), true);
 });
 
-Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: a citation requirement is present", () => {
-  const hasCitation = includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "cite") ||
-    includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "citation") ||
-    includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "name the source") ||
-    includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "source of each");
-  assertEquals(hasCitation, true);
+Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: the source declaration is required, in the form the parser expects", () => {
+  // Attribution moved out of the prose and onto a machine-readable final
+  // line (see citations.ts). The requirement itself did not weaken: the
+  // Edge Function deflects a reply that declares nothing retrieved. If this
+  // label ever drifts from what splitSourceFooter() looks for, every answer
+  // deflects — so the prompt must carry the parser's own constant.
+  assertEquals(
+    GENERAL_CHAT_SYSTEM_PROMPT.includes(SOURCE_FOOTER_LABEL),
+    true,
+    "prompt must instruct the model using the exact SOURCE_FOOTER_LABEL",
+  );
+  assertEquals(includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "source"), true);
+});
+
+Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: prose attribution is forbidden", () => {
+  // The user-facing half of the same change: no "According to X" openers and
+  // no "(Source: X)" mid-sentence.
+  assertEquals(includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "according to"), true);
+  assertEquals(
+    includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "do not name your sources"),
+    true,
+    "prompt must tell the model to keep source names out of the answer text",
+  );
 });
 
 Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: does not embed CKD educational content directly", () => {

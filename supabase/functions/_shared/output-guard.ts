@@ -119,6 +119,26 @@ function citesAnySource(draft: string, sourceIds: readonly string[]): boolean {
   });
 }
 
+export interface DraftCheckOptions {
+  /**
+   * Whether the draft must name a retrieved source in its own text
+   * (heuristic #4). Default true.
+   *
+   * general-chat passes false, and NOT because the requirement was dropped:
+   * it moved. That chatbot now takes attribution from a machine-readable
+   * SOURCES line which the Edge Function verifies against the same retrieved
+   * IDs and then strips (see citations.ts), so by the time a draft reaches
+   * this function its attribution has already been checked — and checking
+   * again would fail every reply, since the visible prose is deliberately
+   * citation-free.
+   *
+   * The Clarification Engine keeps the default: its replies still carry
+   * prose citations, because the assessment UI has no source chips to move
+   * them to.
+   */
+  requireCitation?: boolean;
+}
+
 /**
  * Cheap heuristic audit of a draft answer before it reaches the user. Never
  * calls a model. Returns { safe: false, reason } on the first check that
@@ -134,7 +154,9 @@ export function checkDraftAnswer(
   draft: string,
   systemPrompt: string,
   retrievedSourceIds: readonly string[] = APPROVED_SOURCE_IDS,
+  options: DraftCheckOptions = {},
 ): DraftCheckResult {
+  const requireCitation = options.requireCitation ?? true;
   // Case-insensitive: neutralizeDelimiters matches tokens case-insensitively,
   // so the output-side check must too.
   const draftUpper = draft.toUpperCase();
@@ -192,7 +214,7 @@ export function checkDraftAnswer(
     (deflection) => draftNorm === normalizeWhitespace(deflection),
   );
   if (
-    draft.trim().length > 0 && !isDeflection &&
+    requireCitation && draft.trim().length > 0 && !isDeflection &&
     !citesAnySource(draft, retrievedSourceIds)
   ) {
     return {

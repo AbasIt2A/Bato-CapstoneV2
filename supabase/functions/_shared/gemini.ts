@@ -105,6 +105,22 @@ const GENERATION_THINKING_LEVEL = "low";
 /** Sampling temperature when the caller does not specify one. */
 const DEFAULT_TEMPERATURE = 0.3;
 
+/**
+ * Output budget when the caller does not specify one.
+ *
+ * THINKING TOKENS COME OUT OF THIS SAME BUDGET on the 3.x models. A measured
+ * reply to "how bad is obesity for my kidneys" spent 785 tokens thinking and
+ * 102 answering — so at the previous 1024 the answer had roughly 200 tokens
+ * of room, and a slightly longer deliberation truncated it mid-sentence.
+ *
+ * That was always a defect; it became a visible one when replies gained a
+ * required SOURCES line (citations.ts), because a truncated reply loses the
+ * line and is then treated as unattributed and deflected. 2048 leaves the
+ * answer about a thousand tokens after a typical deliberation. It costs
+ * nothing on the free tier, which meters REQUESTS per day, not tokens.
+ */
+const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
+
 export async function generateReply(options: {
   /** The ONLY trusted instruction region. */
   systemPrompt: string;
@@ -141,7 +157,7 @@ export async function generateReply(options: {
         contents: [{ role: "user", parts: [{ text: options.message }] }],
         generationConfig: {
           temperature: options.temperature ?? DEFAULT_TEMPERATURE,
-          maxOutputTokens: options.maxOutputTokens ?? 1024,
+          maxOutputTokens: options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
           thinkingConfig: { thinkingLevel: GENERATION_THINKING_LEVEL },
         },
       }),
@@ -181,12 +197,23 @@ export async function generateReply(options: {
       .join("")
       .trim();
 
+    const finishReason: string = data?.candidates?.[0]?.finishReason ?? "";
+
+    // A reply cut off at the token ceiling is not a usable reply: it ends
+    // mid-sentence and, on the general-chat path, has lost the SOURCES line
+    // that carries its attribution. Retry it like any other transient
+    // failure rather than shipping half an answer.
+    if (finishReason === "MAX_TOKENS") {
+      lastFailure = "Gemini truncated the reply (finishReason: MAX_TOKENS)";
+      continue;
+    }
+
     if (typeof text === "string" && text.length > 0) return text;
 
     // Covers malformed responses, safety blocks and empty candidates
     // without exposing internals.
     lastFailure = `Gemini returned no text (finishReason: ${
-      data?.candidates?.[0]?.finishReason ?? "unknown"
+      finishReason || "unknown"
     })`;
   }
 

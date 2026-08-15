@@ -764,6 +764,114 @@ async function classifyWithGemini(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Retrieval reformulation (second-chance retrieval)
+// ---------------------------------------------------------------------------
+
+const REFORMULATE_SYSTEM_PROMPT =
+  `You rewrite a person's health question into the form it would take in the
+index of a reference document, so it can be matched against reference
+passages. You never answer the question.
+
+Keep the SAME subject and the SAME thing being asked. Drop the personal
+framing and the feelings — "when should I be worried about going under
+dialysis treatment?" asks the same thing as "when do people need to start
+dialysis?". Write one plain question about people in general, under 20 words.
+
+Never add a subject the question does not have, never make it narrower or
+more specific, and never turn it into a different question. If it is already
+phrased plainly, repeat it unchanged.
+
+Reply with the rewritten question only — no quotes, no explanation.`;
+
+/** Hard cap on the rewrite round-trip. Shorter than the gate's: this runs
+ * AFTER a failed retrieval, so its latency is added to a request that has
+ * already spent an embedding and a rerank. */
+const REFORMULATE_TIMEOUT_MS = 4000;
+
+/**
+ * Rewrites `query` into a neutral, expository form for a second retrieval
+ * attempt, or returns null when that is not possible.
+ *
+ * ===== WHY =====
+ *
+ * The reranker scores a question against a passage, and how a question is
+ * PHRASED moves that score independently of what it asks. Measured on
+ * 2026-08-15: "When should I be worried about going under dialysis
+ * treatment?" scored 0.292 against the passage on how the decision to start
+ * dialysis is made — eight thousandths below the 0.30 threshold, so the
+ * chatbot deflected. "When do people need to start dialysis?" scored 0.682
+ * against THE SAME passage. The corpus had the answer and ranked it first
+ * both times; only the wording differed.
+ *
+ * The alternative fix was lowering the threshold, and the numbers argue
+ * against it: the body-weight question deflected at 0.254 back when the
+ * corpus genuinely had no answer, which is 0.04 from this false negative.
+ * There is no cut that separates them, so the threshold is not where the
+ * problem lives — the query phrasing is.
+ *
+ * Runs ONLY after a retrieval attempt has already come back empty, so the
+ * cost is bounded to requests that would otherwise have deflected outright.
+ *
+ * GROQ ONLY, deliberately: this is a recall improvement, not a guard, and it
+ * must never spend Gemini's 20/day generation bucket to make one. No key, no
+ * answer, or anything unusable simply means no second chance.
+ */
+export async function reformulateForRetrieval(
+  query: string,
+): Promise<string | null> {
+  const apiKey = readEnv("GROQ_API_KEY");
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: groqGateModel(),
+        messages: [
+          { role: "system", content: REFORMULATE_SYSTEM_PROMPT },
+          { role: "user", content: query },
+        ],
+        temperature: 0,
+        max_tokens: 80,
+      }),
+      signal: AbortSignal.timeout(REFORMULATE_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`Groq reformulate HTTP ${response.status}`);
+
+    const data = await response.json();
+    const text: string = data?.choices?.[0]?.message?.content ?? "";
+    // First line first, THEN unquote: a model that wraps the question in
+    // quotes and adds a sentence after it leaves the closing quote attached
+    // to the question if these run the other way round.
+    const rewritten = (text.trim().split("\n")[0] ?? "")
+      .trim()
+      .replace(/^["']+|["']+$/g, "")
+      .trim();
+
+    // Same validation the conversational rewrite gets, and for the same
+    // reason: this string becomes a retrieval query built from model output.
+    if (!rewritten || rewritten.length > MAX_STANDALONE_QUESTION_CHARS) {
+      return null;
+    }
+    if (preScreenInjection(rewritten)) {
+      console.warn(
+        "gate: discarding retrieval reformulation — tripped the injection pre-screen",
+      );
+      return null;
+    }
+    if (rewritten.toLowerCase() === query.trim().toLowerCase()) return null;
+    return rewritten;
+  } catch (err) {
+    console.warn("gate: retrieval reformulation unavailable:", err);
+    return null;
+  }
+}
+
 /**
  * Full gate for one user message: regex pre-screen first (final if it hits —
  * returns injection_detected=true immediately, no API call); otherwise the

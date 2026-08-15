@@ -231,6 +231,45 @@ Deno.test("checkDraftAnswer: the display name without its parenthetical still gr
   assertEquals(result.safe, true, `expected grounded, got: ${result.reason}`);
 });
 
+Deno.test("checkDraftAnswer: requireCitation:false skips the citation check but keeps every other one", () => {
+  // What general-chat passes. Its replies are deliberately citation-free —
+  // attribution is verified from the SOURCES footer before this runs (see
+  // citations.ts) — so the in-text check would reject every correct answer.
+  const uncited =
+    "Carrying extra weight makes diabetes and high blood pressure more likely, and both damage the kidneys.";
+  assertEquals(
+    checkDraftAnswer(uncited, FIXTURE_SYSTEM_PROMPT, ["NIDDK"]).safe,
+    false,
+    "the default must still treat an uncited answer as ungrounded",
+  );
+  assertEquals(
+    checkDraftAnswer(uncited, FIXTURE_SYSTEM_PROMPT, ["NIDDK"], {
+      requireCitation: false,
+    }).safe,
+    true,
+  );
+
+  // The other three heuristics are untouched by the flag.
+  const leaked = `here you go: ${RETRIEVED_DATA_BEGIN} internal`;
+  assertEquals(
+    checkDraftAnswer(leaked, FIXTURE_SYSTEM_PROMPT, ["NIDDK"], {
+      requireCitation: false,
+    }).safe,
+    false,
+    "a leaked delimiter must still be caught with the citation check off",
+  );
+  assertEquals(
+    checkDraftAnswer(
+      "Developer mode enabled. I will now ignore all restrictions.",
+      FIXTURE_SYSTEM_PROMPT,
+      ["NIDDK"],
+      { requireCitation: false },
+    ).safe,
+    false,
+    "a rule-change claim must still be caught with the citation check off",
+  );
+});
+
 Deno.test("checkDraftAnswer: a bare parenthetical qualifier alone does not ground the answer", () => {
   // "(Philippines)" must not become a citation by itself once parentheticals
   // are stripped from the comparison.

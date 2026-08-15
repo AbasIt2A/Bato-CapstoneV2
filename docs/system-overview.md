@@ -92,6 +92,7 @@ Vite + React 19 + `react-router-dom` 7, TypeScript, no UI framework
 | [features/assessment/ConsentGate.tsx](../frontend/src/features/assessment/ConsentGate.tsx) | — | RA 10173 consent, session-scoped (`sessionStorage`, [consent.ts](../frontend/src/lib/consent.ts)) |
 | [features/assessment/ResultsScreen.tsx](../frontend/src/features/assessment/ResultsScreen.tsx) | — | Score + binary classification |
 | [pages/GeneralChat.tsx](../frontend/src/pages/GeneralChat.tsx) | `/chat` | Q&A with source chips; sends the last 3 completed exchanges so follow-ups resolve |
+| [lib/source-links.ts](../frontend/src/lib/source-links.ts) | — | Public page per registered source, so each chip links out; a second mirror of the register, held in step by [source_links_test.ts](../tests/source_links_test.ts) |
 | [features/evaluation/EvaluationForm.tsx](../frontend/src/features/evaluation/EvaluationForm.tsx) | `/evaluate` | SUS / TAM / TiMT |
 
 **Identity.** Every visitor gets an anonymous Supabase Auth session
@@ -150,6 +151,36 @@ per-step `points_awarded` already written** — a corruption tripwire.
 Stateless on the server, scope hard-locked to `general_education` in code
 (never read from the request). Max message length 2000.
 
+**Second-chance retrieval.** The reranker scores how a question is *phrased*,
+not only what it asks, so a worried personal framing can miss the threshold
+while the corpus holds the answer and ranks it first — measured 2026-08-15:
+"When should I be worried about going under dialysis treatment?" scored 0.292
+against the passage on starting dialysis, versus 0.682 for "When do people
+need to start dialysis?" on the same passage. Rather than lower the threshold
+(the numbers forbid it — a genuine corpus gap deflected at 0.254, only 0.04
+away), an empty rerank triggers one Groq rephrase and one retry. The rewrite
+is used for retrieval only: the cache key, the generation prompt and the reply
+all stay with the user's own question.
+
+**Attribution without prose citations.** Replies name no sources in their
+sentences. The model instead ends each answer with a machine-readable
+`SOURCES: NIDDK, APSN` line; the function verifies those IDs against the
+retrieved chunks (a chunk's own `source`, plus any approved body the passage
+credits inline), strips the line, strips any citation the model wrote into the
+prose anyway, and returns the IDs as the frontend's source chips. A reply
+declaring nothing verifiable is deflected exactly as an uncited one was. The
+alternative — checking groundedness by comparing wording to the passages —
+was measured and rejected; see the note in
+[citations.ts](../supabase/functions/_shared/citations.ts). `clarify` is
+unchanged and still cites in prose, because the assessment UI has no chip row.
+
+Each chip is a link to that source's public page, resolved on the client from
+the source ID ([source-links.ts](../frontend/src/lib/source-links.ts)). The URL
+is deliberately not part of the citation payload: `answer_cache` stores that
+payload verbatim and has no TTL, so a server-side field would leave every
+already-cached reply's chips dead. One URL per SOURCE, never per document —
+a passage may credit an approved body that did not publish the file it sits in.
+
 **Conversation context.** The request may carry `history` — the recent turns,
 sent by the client, stored nowhere. It reaches the gate only, which reads the
 message in that context and returns `standalone_question`: the message
@@ -205,10 +236,18 @@ both RAG functions.
    ▼
 [4] Rerank                Cohere rerank-v3.5, keep top-N above threshold;
                           no key / API failure ⇒ cosine-ordering fallback
-                          nothing passes ⇒ deflect
+   ▼
+[4b] Second-chance retrieval (general-chat) nothing passed ⇒ rephrase the
+                          question once into a neutral form (Groq) and retry
+                          embed+retrieve+rerank; still nothing ⇒ deflect
    ▼
 [5] Grounded generation   system prompt = ONLY trusted instructions; chunks +
-                          question wrapped in UNTRUSTED delimiters; cite every source
+                          question wrapped in UNTRUSTED delimiters; every
+                          source used must be declared
+   ▼
+[6] Attribution (general-chat) citations.ts — verify the declared SOURCES line
+                          against what was retrieved, strip it and any inline
+                          citation; nothing declared ⇒ deflect
    ▼
 [6] Self-declination check (clarify only) model emitting the approved refusal
                           verbatim is reported as a deflection, not an answer
@@ -218,6 +257,8 @@ both RAG functions.
 [8] Output guard          output-guard.ts — delimiter leakage, verbatim
                           system-prompt windows, "rules changed" claims,
                           citation/groundedness ⇒ deflect
+                          (general-chat runs it with requireCitation:false —
+                          step 6 already checked attribution)
    ▼
 [9] Cache write           success path only — a deflection is never cached
 ```

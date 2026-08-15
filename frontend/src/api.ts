@@ -5,7 +5,8 @@
 export interface SourceCitation {
   source: string;
   title: string;
-  heading_path: string;
+  /** Null for a chunk that sat directly under the document's H1. */
+  heading_path: string | null;
 }
 
 export interface ChatResponse {
