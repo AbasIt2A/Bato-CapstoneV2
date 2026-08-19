@@ -64,7 +64,7 @@ messages/day:
 
 | Stage | Provider / model | Bucket |
 |---|---|---|
-| Input gate | Groq `llama-3.1-8b-instant` | not Gemini at all |
+| Input gate | Groq `openai/gpt-oss-20b` | not Gemini at all |
 | Input gate (fallback, only if Groq is unset/failing) | `gemini-3.5-flash` | bucket A |
 | general-chat generation | `gemini-3.5-flash-lite` | bucket B |
 | clarify generation | `gemini-3.1-flash-lite` | bucket C |
@@ -130,7 +130,7 @@ chase hit rate re-introduces exactly the failure it was built to avoid.
 | `COHERE_API_KEY` | rerank | Cohere Rerank v3.5 (optional — cosine fallback if unset) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Edge Function, ingest script | Server-side DB access |
 | `GEMINI_MODEL` / `CLARIFY_GEMINI_MODEL` / `GATE_MODEL` | generation, gate | Per-role model overrides — **must stay three distinct models** |
-| `GROQ_GATE_MODEL` | gate | Groq classifier model (default `llama-3.1-8b-instant`) |
+| `GROQ_GATE_MODEL` | gate | Groq classifier model (default `openai/gpt-oss-20b`) |
 | `ANSWER_CACHE_ENABLED` | answer cache | Set `false` to bypass the cache entirely (default on) |
 | `CACHE_HIT_THRESHOLD` / `CLARIFY_CACHE_HIT_THRESHOLD` | answer cache | Tier-2 similarity floor (0.97 / 0.98). Set above the measured overlap — do not lower without re-measuring |
 | `VECTOR_SIMILARITY_FLOOR` | retrieval | Override recall floor (default 0.45) |

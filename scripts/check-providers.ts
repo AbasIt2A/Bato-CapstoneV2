@@ -243,8 +243,15 @@ if (!groqKey) {
           { role: "user", content: "What is chronic kidney disease?" },
         ],
         temperature: 0,
-        max_tokens: 64,
+        // Mirrors the gate's own budget and reasoning control (gate.ts). A
+        // probe that is stingier than the real call reports healthy while the
+        // gate returns empty content — the exact failure this script exists
+        // to catch.
+        max_tokens: 512,
         response_format: { type: "json_object" },
+        ...(/gpt-oss/i.test(groqGateModel())
+          ? { reasoning_effort: "low" }
+          : {}),
       }),
       signal: AbortSignal.timeout(30000),
     });

@@ -310,20 +310,51 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
  * Primary classifier model, on Groq; override with the GROQ_GATE_MODEL env
  * var.
  *
- * An 8B instruct model, not a frontier one, and deliberately: this task is
- * "does this sentence concern kidneys, and is it trying to manipulate me" at
- * temperature 0 against an enumerated scope list. The small model also
+ * A small open-weights model, not a frontier one, and deliberately: this task
+ * is "does this sentence concern kidneys, and is it trying to manipulate me"
+ * at temperature 0 against an enumerated scope list. The small model also
  * carries the most generous per-day allowance on the free tier, which is the
  * entire reason this provider is here.
+ *
+ * WAS `llama-3.1-8b-instant`, WHICH GROQ RETIRED. It passed
+ * `check:providers` on 2026-08-15 and returned HTTP 404 ("does not exist or
+ * you do not have access to it") on 2026-08-19, having disappeared from the
+ * catalogue entirely. The warning below is therefore not hypothetical — it
+ * has now happened once, and cost four days of degraded behaviour:
+ * classification silently fell through to the Gemini fallback, which timed
+ * out, which failed open, which meant follow-ups were never resolved in
+ * context and second-chance retrieval never ran.
  *
  * VERIFY BEFORE TRUSTING. Provider model catalogues change without notice and
  * a retired name returns HTTP 404 — which fails open here, silently disabling
  * scope and injection screening with nothing visible in the reply. That makes
  * the model name a security setting, not a performance one. `deno task
  * check:providers` probes every configured model with a real call for exactly
- * this reason; run it after any provider change.
+ * this reason; run it after any provider change, and on a schedule.
  */
-export const GROQ_GATE_MODEL_DEFAULT = "llama-3.1-8b-instant";
+export const GROQ_GATE_MODEL_DEFAULT = "openai/gpt-oss-20b";
+
+/**
+ * Groq's gpt-oss models REASON BEFORE ANSWERING, and those tokens come out of
+ * `max_tokens`. Left unconstrained they spend the whole budget thinking and
+ * return `finish_reason: "length"` with EMPTY content — measured here at
+ * max_tokens 80, where the reformulation call got nothing back at all.
+ *
+ * "low" is the floor the API accepts ("none" is rejected: it must be one of
+ * low/medium/high). Neither of this module's jobs — a fixed-schema verdict
+ * and a one-sentence rewrite — wants deliberation, and holding it down also
+ * keeps latency comfortably inside GATE_TIMEOUT_MS.
+ *
+ * Sent ONLY to models that accept it, since a model without a reasoning
+ * control rejects the parameter outright with HTTP 400.
+ */
+const GROQ_REASONING_EFFORT = "low";
+
+function groqReasoningParams(model: string): Record<string, string> {
+  return /gpt-oss/i.test(model)
+    ? { reasoning_effort: GROQ_REASONING_EFFORT }
+    : {};
+}
 
 /**
  * Fallback classifier model, on Gemini; override with the GATE_MODEL env var.
@@ -676,7 +707,12 @@ async function attemptGroq(
           { role: "user", content: payload },
         ],
         temperature: 0,
-        max_tokens: 256,
+        // Generous for a small JSON verdict, because on a reasoning model
+        // this budget is shared with the thinking that precedes it. Too tight
+        // and the reply comes back empty, which cascades to Gemini and spends
+        // the scarce bucket this provider exists to protect.
+        max_tokens: 512,
+        ...groqReasoningParams(model),
         // Constrained decoding. Groq requires the literal word "json" to
         // appear in the prompt for this mode; the shared gate prompts end
         // with "Respond with ONLY this JSON object", which satisfies it.
@@ -837,7 +873,10 @@ export async function reformulateForRetrieval(
           { role: "user", content: query },
         ],
         temperature: 0,
-        max_tokens: 80,
+        // See the note on GROQ_REASONING_EFFORT: at 80 this returned empty
+        // content on a reasoning model, having spent the lot thinking.
+        max_tokens: 256,
+        ...groqReasoningParams(groqGateModel()),
       }),
       signal: AbortSignal.timeout(REFORMULATE_TIMEOUT_MS),
     });

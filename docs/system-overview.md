@@ -388,7 +388,7 @@ messages/day:
 
 | Stage | Provider / model | Quota bucket |
 |---|---|---|
-| Input gate (primary) | Groq `llama-3.1-8b-instant` | not Gemini at all |
+| Input gate (primary) | Groq `openai/gpt-oss-20b` | not Gemini at all |
 | Input gate (fallback, only if Groq unset/failing) | `gemini-3.5-flash` | A |
 | `general-chat` generation | `gemini-3.5-flash-lite` | B |
 | `clarify` generation | `gemini-3.1-flash-lite` | C |
