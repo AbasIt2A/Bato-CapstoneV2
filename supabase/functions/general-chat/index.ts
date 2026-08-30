@@ -30,8 +30,11 @@
 // guard, so caching can neither bypass screening on the way in nor preserve
 // an unguarded reply on the way out.
 //
-// Every infrastructure failure (embedding, RPC, generation) degrades to the
-// deflection with a server-side log — never a raw 500 with internals.
+// Every infrastructure failure (embedding, RPC, generation) degrades to a
+// graceful reply with a server-side log — never a raw 500 with internals.
+// It degrades to SERVICE_ERROR_MESSAGE, NOT to the scope deflection: those
+// two sentences make different claims, and only one of them is true when the
+// pipeline breaks under an in-scope question. See serviceError() below.
 //
 // ===== ONE RESOLVED QUESTION, USED EVERYWHERE =====
 //
@@ -81,6 +84,7 @@ import { filterAssistantReply } from "../_shared/topic-filter.ts";
 import {
   DEFLECTION_MESSAGE,
   GENERAL_CHAT_SYSTEM_PROMPT,
+  SERVICE_ERROR_MESSAGE,
 } from "../_shared/prompts.ts";
 import {
   corsHeaders,
@@ -113,6 +117,33 @@ interface ChatResponse {
 function deflect(): Response {
   const body: ChatResponse = {
     reply: DEFLECTION_MESSAGE,
+    sources: [],
+    deflected: true,
+  };
+  return jsonResponse(body);
+}
+
+/**
+ * The reply for a TEMPORARY INFRASTRUCTURE FAILURE — never for a decision
+ * about the question itself.
+ *
+ * Use this where the pipeline broke: the embedding call, the retrieval RPC,
+ * the generation call, or the last-resort catch. Use deflect() where the
+ * pipeline WORKED and the answer was withheld: the gate blocked the message,
+ * nothing cleared the rerank threshold, the reply cited nothing retrieved, or
+ * a guard tripped. The distinction is whether the sentence the user reads is
+ * true, and until 2026-08-30 it frequently was not — a Gemini
+ * MALFORMED_RESPONSE told the user their in-scope question was off-topic.
+ *
+ * `deflected` stays TRUE on the wire. It is not a claim about scope; it is
+ * what tells the client this turn carries no answer, and the frontend uses it
+ * to keep the turn out of the conversation history sent with the next message
+ * (see recentHistory in GeneralChat.tsx). A failed turn has no subject for a
+ * follow-up to inherit, exactly like a refusal.
+ */
+function serviceError(): Response {
+  const body: ChatResponse = {
+    reply: SERVICE_ERROR_MESSAGE,
     sources: [],
     deflected: true,
   };
@@ -219,8 +250,8 @@ Deno.serve(async (req) => {
         embedForCache(question),
       ]);
     } catch (err) {
-      console.error("general-chat: embedding failed — deflecting:", err);
-      return deflect();
+      console.error("general-chat: embedding failed:", err);
+      return serviceError();
     }
 
     // (2c) TIER 2 — similarity backstop, at a threshold set above every
@@ -238,8 +269,8 @@ Deno.serve(async (req) => {
     try {
       candidates = await retrieveChunks(supabase, question, SCOPE, embedding);
     } catch (err) {
-      console.error("general-chat: retrieval failed — deflecting:", err);
-      return deflect();
+      console.error("general-chat: retrieval failed:", err);
+      return serviceError();
     }
 
     // (4) Rerank to the top-N above the relevance threshold. Never throws;
@@ -304,8 +335,8 @@ Deno.serve(async (req) => {
         scope: SCOPE,
       });
     } catch (err) {
-      console.error("general-chat: generation failed — deflecting:", err);
-      return deflect();
+      console.error("general-chat: generation failed:", err);
+      return serviceError();
     }
 
     // (6) Attribution. The model declares what it used on a final SOURCES
@@ -397,8 +428,8 @@ Deno.serve(async (req) => {
     return jsonResponse(response);
   } catch (err) {
     // Last-resort safety net: any unexpected failure anywhere in the
-    // pipeline still degrades to the deflection, never a raw 500.
-    console.error("general-chat: unexpected error — deflecting:", err);
-    return deflect();
+    // pipeline still degrades to a graceful reply, never a raw 500.
+    console.error("general-chat: unexpected error:", err);
+    return serviceError();
   }
 });

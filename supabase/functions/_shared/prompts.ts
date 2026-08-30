@@ -32,12 +32,43 @@ import { SOURCE_FOOTER_LABEL } from "./citations.ts";
  * true) whenever the input gate blocks a message, reranking grounds
  * nothing, or the output guard trips. Quoted inside the system prompt too,
  * so a model-side decline matches the server-side one word for word.
+ *
+ * This sentence makes a CLAIM ABOUT THE QUESTION — that it was off-topic. Do
+ * not reuse it for a failure that says nothing about the question; that is
+ * what SERVICE_ERROR_MESSAGE below is for.
  */
 export const DEFLECTION_MESSAGE =
   "Sorry — I can only answer questions about kidney health and chronic " +
   "kidney disease (CKD). I can't help with that. You can ask me things " +
   "like what CKD is, its stages and symptoms, how to keep your kidneys " +
   "healthy, or kidney care in the Philippines.";
+
+/**
+ * The reply for a TEMPORARY SERVICE FAILURE: the embedding call, the
+ * retrieval RPC or the generation call erroring out, or an unexpected fault
+ * anywhere in the pipeline.
+ *
+ * WHY THIS EXISTS. Every one of those paths used to return
+ * DEFLECTION_MESSAGE, so an outage told the user "I can only answer
+ * questions about kidney health" — about a question that was in scope, had
+ * retrieved four correct passages, and failed only because Gemini returned
+ * an empty candidate. Observed live on 2026-08-30: "What is ckd" came back
+ * as a scope refusal after `finishReason: MALFORMED_RESPONSE` on both
+ * attempts. Of every way this system can misreport itself, telling a user
+ * their valid question was off-topic is the most damaging — they believe it,
+ * and they stop asking.
+ *
+ * It says the failure is ours and that retrying is worth it, and nothing
+ * else. No hint about scope, because scope is not what happened.
+ *
+ * DELIBERATELY NOT QUOTED IN ANY SYSTEM PROMPT, unlike the two deflections.
+ * The model must never be able to produce this sentence: it is the server's
+ * statement about its own infrastructure, and an ungrounded reply is exactly
+ * what it must never be mistaken for.
+ */
+export const SERVICE_ERROR_MESSAGE =
+  "Sorry — I'm having trouble answering right now. This is a problem on my " +
+  "end, not with your question. Please try again in a moment.";
 
 export const GENERAL_CHAT_SYSTEM_PROMPT =
   `You are BATO's kidney health assistant: a friendly, plain-language guide about chronic kidney disease (CKD) for the general public in the Philippines. You are not a doctor, you never diagnose, and you always encourage users to consult a qualified health professional about their own health.
@@ -65,6 +96,13 @@ Answer strictly and only using facts present in the retrieved chunks given to yo
 - Every factual claim you make must be grounded in a specific retrieved chunk.
 - Never invent, assume, or add facts that are not present in the retrieved chunks, even if you believe you already know the answer.
 - If the retrieved chunks do not contain enough information to answer the question, say so plainly — do not guess and do not fill the gap from general knowledge — and suggest the user ask a health professional or rephrase their question.
+
+===== NUMBERS ARE GENERAL FACTS, NEVER PERSONAL TARGETS =====
+A retrieved chunk may contain a number: a diagnostic threshold, a category boundary, a blood pressure definition, a test price, a population statistic. You may state such a number as what it is — a general fact about people at large. You must never convert it into a target, limit, allowance, goal, or instruction for the person you are talking to.
+- State a threshold the way the retrieved chunk states it — as what a guideline counts as high, low, or normal for people in general. Never restate it as an instruction to this user: not "yours should be under that", not "you should aim for", "keep yours below", or "you want to stay under".
+- Explain what a number means. Never say what this user should do to reach it, stay under it, or maintain it.
+- Never do arithmetic with a figure the user gives you about themselves. Do not compare their number against a threshold, and do not tell them which side of a boundary they fall on. Say that only a health professional can interpret their own results.
+- If the user asks how much of anything is safe or right for them personally — salt, protein, potassium, phosphorus, fluid, calories, body weight, or exercise — say that the amount is set individually by a doctor or dietitian and that you cannot set it for them. Do not offer a general figure as a substitute, even if a retrieved chunk contains one.
 
 ===== HOW TO CREDIT YOUR SOURCES =====
 Do NOT name your sources anywhere in the answer itself. The app displays them to the user separately, so naming them in the prose says the same thing twice and makes every answer sound the same.
@@ -94,6 +132,23 @@ export const CLARIFICATION_DEFLECTION_MESSAGE =
   "used in this screening, like proteinuria or peripheral vascular " +
   "disease. If you are unsure about the question you are on, the " +
   "assessment asks you to answer no. Your answers so far are unchanged.";
+
+/**
+ * SERVICE_ERROR_MESSAGE's counterpart for the clarification branch, and
+ * different for the same reason CLARIFICATION_DEFLECTION_MESSAGE is: the
+ * user is standing in the middle of a questionnaire, and whatever else this
+ * sentence does, it must tell them their answers survived.
+ *
+ * It does NOT repeat the "answer no if you are unsure" instruction. That
+ * belongs to a refusal — a term this engine will never explain — whereas
+ * this is a transient fault the user should simply ask again about. Nudging
+ * them toward "no" here would push a scored answer on the strength of an
+ * infrastructure blip.
+ */
+export const CLARIFICATION_SERVICE_ERROR_MESSAGE =
+  "Sorry — I'm having trouble explaining that right now. This is a problem " +
+  "on my end, not with your question. Please try asking again in a moment. " +
+  "Your answers so far are unchanged.";
 
 export const CLARIFICATION_SYSTEM_PROMPT =
   `You are BATO's screening helper. A person is part-way through a short kidney health screening questionnaire and has paused to ask what a word or question means. Your ONLY job is to explain, in plain language, what that question is asking and why the screening asks it, so they can answer for themselves. You are not a doctor, you never diagnose, and you never assess anyone's personal risk.

@@ -74,6 +74,7 @@ import { checkDraftAnswer } from "../_shared/output-guard.ts";
 import { filterAssistantReply } from "../_shared/topic-filter.ts";
 import {
   CLARIFICATION_DEFLECTION_MESSAGE,
+  CLARIFICATION_SERVICE_ERROR_MESSAGE,
   CLARIFICATION_SYSTEM_PROMPT,
 } from "../_shared/prompts.ts";
 import {
@@ -107,6 +108,28 @@ interface ClarifyResponse {
 function deflect(): Response {
   const body: ClarifyResponse = {
     reply: CLARIFICATION_DEFLECTION_MESSAGE,
+    sources: [],
+    deflected: true,
+  };
+  return jsonResponse(body);
+}
+
+/**
+ * The reply for a TEMPORARY INFRASTRUCTURE FAILURE — never for a decision
+ * about the question itself. Same split as general-chat's serviceError():
+ * this is for a pipeline that broke (embedding, retrieval RPC, generation,
+ * last-resort catch), deflect() is for one that worked and withheld the
+ * answer on purpose.
+ *
+ * The distinction matters more here than on the general path, not less. The
+ * clarification deflection ends by telling the user the assessment asks them
+ * to answer no when unsure — sound advice about a term this engine will not
+ * explain, and a nudge toward a scored answer that must never be triggered
+ * by a transient API fault.
+ */
+function serviceError(): Response {
+  const body: ClarifyResponse = {
+    reply: CLARIFICATION_SERVICE_ERROR_MESSAGE,
     sources: [],
     deflected: true,
   };
@@ -231,8 +254,8 @@ Deno.serve(async (req) => {
         embedForCache(retrievalQuery),
       ]);
     } catch (err) {
-      console.error("clarify: embedding failed — deflecting:", err);
-      return deflect();
+      console.error("clarify: embedding failed:", err);
+      return serviceError();
     }
 
     // TIER 2 — similarity backstop at 0.98, stricter than general education.
@@ -253,8 +276,8 @@ Deno.serve(async (req) => {
         embedding,
       );
     } catch (err) {
-      console.error("clarify: retrieval failed — deflecting:", err);
-      return deflect();
+      console.error("clarify: retrieval failed:", err);
+      return serviceError();
     }
 
     // (4) Rerank at the clarification threshold — stricter than general
@@ -285,8 +308,8 @@ Deno.serve(async (req) => {
         scope: SCOPE,
       });
     } catch (err) {
-      console.error("clarify: generation failed — deflecting:", err);
-      return deflect();
+      console.error("clarify: generation failed:", err);
+      return serviceError();
     }
 
     // The model may decline on its own by emitting the approved wording
@@ -349,9 +372,9 @@ Deno.serve(async (req) => {
     };
     return jsonResponse(response);
   } catch (err) {
-    // Last-resort safety net: any unexpected failure still degrades to the
-    // deflection. A user mid-assessment must never be left stalled.
-    console.error("clarify: unexpected error — deflecting:", err);
-    return deflect();
+    // Last-resort safety net: any unexpected failure still degrades to a
+    // graceful reply. A user mid-assessment must never be left stalled.
+    console.error("clarify: unexpected error:", err);
+    return serviceError();
   }
 });

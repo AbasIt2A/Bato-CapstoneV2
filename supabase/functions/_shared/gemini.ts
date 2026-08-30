@@ -20,9 +20,10 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
  *
  * NOT `gemini-2.5-flash`: Google has closed the 2.5 series to new API keys
  * ("no longer available to new users", HTTP 404). Unlike the gate — which
- * fails open — a 404 here throws, and the Edge Functions turn that into the
- * approved deflection, so a stale model name shows up as "the chatbot
- * refuses every question" rather than as an error.
+ * fails open — a 404 here throws, and the Edge Functions turn that into
+ * SERVICE_ERROR_MESSAGE, so a stale model name shows up as "the chatbot is
+ * having trouble on every question" rather than as an error. Check the
+ * function logs, which carry the real status, not just the symptom.
  *
  * Benchmarked 2026-08-07 on the real grounded prompt (4.7KB system + 3KB
  * retrieved chunks), answering "What is CKD?":
@@ -121,6 +122,51 @@ const DEFAULT_TEMPERATURE = 0.3;
  */
 const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 
+/**
+ * Attempts at the generation call before giving up.
+ *
+ * Was 2, raised after a live failure on 2026-08-30 07:30 UTC: a plain "what
+ * is ckd" spent BOTH attempts on `finishReason: MALFORMED_RESPONSE` and the
+ * user got a refusal for a textbook in-scope question. Two rolls of a die
+ * that comes up bad roughly one time in four is not a rare event — it is a
+ * ~6% chance per question, which over a scripted evaluation session is a
+ * near-certainty.
+ */
+const GENERATION_ATTEMPTS = 3;
+
+/** Pause between attempts. */
+const GENERATION_RETRY_DELAY_MS = 1500;
+
+/**
+ * Wall-clock budget for RETRIES, checked before each one (the pattern
+ * GROQ_RETRY_AFTER_BUDGET_MS uses in gate.ts).
+ *
+ * This is what keeps a third attempt from turning the worst case into a
+ * 48-second wait. It distinguishes the two failure shapes: MALFORMED_RESPONSE
+ * comes back in about a second, so the retries it triggers all fit inside the
+ * budget and the extra attempt is nearly free; a model that is genuinely slow
+ * burns 15s per attempt against GENERATION_TIMEOUT_MS and is cut off after
+ * two, exactly as before. Retrying is for flakiness, not for a stalled model.
+ */
+const GENERATION_RETRY_BUDGET_MS = 25000;
+
+/**
+ * Added to the caller's temperature on the FINAL attempt only.
+ *
+ * Two identical requests are two rolls of the same loaded die: same prompt,
+ * same sampling parameters, same failure. A small nudge makes the last try an
+ * actually different request. It is deliberately small, and deliberately last
+ * — the Clarification Engine passes temperature 0 for a measured reason (see
+ * the `temperature` option below), so this trades a little of that
+ * determinism for an answer only after the deterministic path has already
+ * failed twice and the alternative is refusing a valid question.
+ *
+ * NOT done here: dropping `thinkingConfig` to vary the request. Unset,
+ * thinking on these models measures ~26s (see GENERATION_THINKING_LEVEL) —
+ * past GENERATION_TIMEOUT_MS, so that "retry" would abort every time.
+ */
+const FINAL_ATTEMPT_TEMPERATURE_NUDGE = 0.2;
+
 export async function generateReply(options: {
   /** The ONLY trusted instruction region. */
   systemPrompt: string;
@@ -145,7 +191,9 @@ export async function generateReply(options: {
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
   const model = generationModelFor(options.scope ?? "general_education");
 
-  const request = () =>
+  const baseTemperature = options.temperature ?? DEFAULT_TEMPERATURE;
+
+  const request = (isFinalAttempt: boolean) =>
     fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {
       method: "POST",
       headers: {
@@ -156,7 +204,9 @@ export async function generateReply(options: {
         system_instruction: { parts: [{ text: options.systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: options.message }] }],
         generationConfig: {
-          temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+          temperature: isFinalAttempt
+            ? baseTemperature + FINAL_ATTEMPT_TEMPERATURE_NUDGE
+            : baseTemperature,
           maxOutputTokens: options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
           thinkingConfig: { thinkingLevel: GENERATION_THINKING_LEVEL },
         },
@@ -164,25 +214,52 @@ export async function generateReply(options: {
       signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
     });
 
-  // Two attempts. Retried on transient overload (429/5xx) AND on a 200 that
-  // carries no usable text — the model intermittently returns
-  // finishReason: MALFORMED_RESPONSE with empty parts. That is a successful
-  // HTTP call, so the old status-only retry ignored it and threw, and the
-  // Edge Functions turn a generation throw into the approved deflection.
-  // Measured on the clarification path before this retry existed: one
-  // spurious refusal in roughly every four identical requests, on both
-  // chatbots, with nothing in the reply to distinguish it from a real
-  // scope decision.
+  // Retried on transient overload (429/5xx) AND on a 200 that carries no
+  // usable text — the model intermittently returns finishReason:
+  // MALFORMED_RESPONSE with empty parts. That is a successful HTTP call, so
+  // the old status-only retry ignored it and threw, and the Edge Functions
+  // turn a generation throw into a refusal the user cannot tell apart from a
+  // scope decision. Measured on the clarification path before this retry
+  // existed: one spurious refusal in roughly every four identical requests,
+  // on both chatbots.
+  //
+  // EVERY attempt is logged, not just the last. The failure rate of this call
+  // is the number that decides whether GENERATION_ATTEMPTS is enough, and
+  // until now it was unmeasurable: `lastFailure` was overwritten in place, so
+  // a request that failed twice and one that failed once looked identical in
+  // the logs, and a request that failed twice then SUCCEEDED left no trace at
+  // all.
+  const startedAt = Date.now();
   let lastFailure = "";
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= GENERATION_ATTEMPTS; attempt++) {
+    const isFinalAttempt = attempt === GENERATION_ATTEMPTS;
+
+    const fail = (reason: string) => {
+      lastFailure = reason;
+      console.warn(
+        `gemini: generation attempt ${attempt}/${GENERATION_ATTEMPTS} on ${model} failed — ${reason}`,
+      );
+    };
+
     if (attempt > 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= GENERATION_RETRY_BUDGET_MS) {
+        console.warn(
+          `gemini: retry budget spent (${elapsed}ms) after ${
+            attempt - 1
+          } attempt(s) — not retrying`,
+        );
+        break;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, GENERATION_RETRY_DELAY_MS)
+      );
     }
 
-    const response = await request();
+    const response = await request(isFinalAttempt);
 
     if (response.status === 429 || response.status >= 500) {
-      lastFailure = `Gemini API error ${response.status}`;
+      fail(`Gemini API error ${response.status}`);
       continue;
     }
     if (!response.ok) {
@@ -204,17 +281,24 @@ export async function generateReply(options: {
     // that carries its attribution. Retry it like any other transient
     // failure rather than shipping half an answer.
     if (finishReason === "MAX_TOKENS") {
-      lastFailure = "Gemini truncated the reply (finishReason: MAX_TOKENS)";
+      fail("Gemini truncated the reply (finishReason: MAX_TOKENS)");
       continue;
     }
 
-    if (typeof text === "string" && text.length > 0) return text;
+    if (typeof text === "string" && text.length > 0) {
+      if (attempt > 1) {
+        console.info(
+          `gemini: generation succeeded on attempt ${attempt}/${GENERATION_ATTEMPTS}`,
+        );
+      }
+      return text;
+    }
 
     // Covers malformed responses, safety blocks and empty candidates
     // without exposing internals.
-    lastFailure = `Gemini returned no text (finishReason: ${
-      finishReason || "unknown"
-    })`;
+    fail(
+      `Gemini returned no text (finishReason: ${finishReason || "unknown"})`,
+    );
   }
 
   throw new Error(lastFailure);
