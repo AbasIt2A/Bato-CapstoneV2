@@ -126,17 +126,41 @@ function envNumber(name: string, fallback: number): number {
  * moved verbatim and only `content` is embedded, so the numbers below still
  * hold; the one-H2-per-variable constraint now applies to both files.)
  *
- * Measured after the restructure, top cosine per term in this scope:
+ * Measured after the restructure (2026-08-06, 39 chunks), top cosine per
+ * term in this scope:
  *   peripheral vascular disease 0.791 (was 0.569, and previously matched
  *   the wrong chunk entirely), proteinuria 0.738, age 0.752, sex 0.740,
  *   anemia 0.718, hypertension 0.680, heart failure 0.669, cardiovascular
  *   disease 0.664, diabetes 0.662. Off-topic controls: 0.489, 0.494.
  *
- * So 0.57 is not a compromise value — it sits in open space, 0.09 below the
- * weakest in-scope term and 0.08 above the strongest off-topic probe. If a
- * future edit merges those sections back together, this margin collapses
- * and the engine starts silently deflecting again; the file's front-matter
- * carries a warning to that effect.
+ * RE-MEASURED 2026-08-30 against the live 122-chunk corpus, via
+ * scripts/measure-clarification.ts (REVIEW-FLAGS.md §12.6 asked for this;
+ * §14.8 records it). The probe strings are now pinned in that script, so
+ * every run from here on is exactly comparable — the deltas against the
+ * 2026-08-06 figures above are indicative only, because those probe strings
+ * were never recorded.
+ *   pvd 0.789, uacr 0.789, albumin 0.782, proteinuria 0.781, ckd_definition
+ *   0.767, egfr 0.718, anemia 0.714, age 0.703, cvd 0.693, hypertension
+ *   0.686, chf 0.674, diabetes 0.636, sex 0.633. bp_threshold is the
+ *   strongest at 0.830. Off-topic controls: 0.541, 0.518, 0.513.
+ *
+ * 0.57 STILL SITS IN OPEN SPACE, AND THE MARGIN HAS ROUGHLY HALVED. Every
+ * in-scope probe clears it and every control stays below it, but the gap
+ * between the weakest in-scope probe (sex, 0.633) and the strongest control
+ * (weather, 0.541) is now 0.092, against ~0.17 in August. Headroom is 0.063
+ * below the weakest term and only 0.029 above the strongest control.
+ *
+ * Both ends moved. `sex` fell the furthest of any term, and the weather
+ * control ROSE to 0.541 — it now matches the PSH blood-pressure chunk, which
+ * did not exist in the 39-chunk corpus. That is the predictable cost of
+ * adding clarification-scoped files: an off-topic probe has more surface to
+ * land on. 0.029 is thin. Re-run the script after any further change to this
+ * scope's membership, and treat a control above ~0.55 as a signal to raise
+ * the floor rather than to widen the corpus again.
+ *
+ * If a future edit merges the per-variable sections back together, this
+ * margin collapses and the engine starts silently deflecting again; the
+ * file's front-matter carries a warning to that effect.
  *
  * This only ever applies on the DEGRADED path taken when COHERE_API_KEY is
  * unset and there is no reranker to be strict with — which is the live

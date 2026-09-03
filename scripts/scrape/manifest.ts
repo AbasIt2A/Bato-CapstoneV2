@@ -399,6 +399,135 @@ export const MANIFEST: readonly ManifestEntry[] = [
       "PSH is NOT PSN (Philippine Society of Nephrology) — two Philippine " +
       "specialty societies with adjacent acronyms. Do not cross-attribute.",
   },
+
+  // === SOURCES.md #26-#30, added 2026-08-30 ==============================
+  //
+  // Selected against docs/corpus-blind-spots.md, which ranked the gaps by
+  // how many likely user questions each source unlocks rather than by how
+  // authoritative the source is. The first two ranked gaps were Philippine
+  // services/cost (#26-#28) and named Filipino food and drink (#29-#30).
+  //
+  // Publishers registered in
+  // 20260830000001_register_services_and_diet_sources.sql and mirrored in
+  // _shared/sources.ts. Outstanding adviser questions: REVIEW-FLAGS §13.
+
+  {
+    id: "davao-cho-early-consultation",
+    rank: 26,
+    title: "Davao City CHO — Early consultation vital vs kidney diseases",
+    url:
+      "https://davaocity.gov.ph/health/early-consultation-vital-vs-kidney-diseases-says-cho",
+    kind: "web",
+    sourceId: "DAVAOCHO",
+    scopes: ["general_education"],
+    topicTags: ["davao", "philippines", "health-center", "screening", "access"],
+    access: "open",
+    licence:
+      "City Government of Davao (City Information Office) news release. " +
+      "Government work; verify reuse terms.",
+    notes:
+      "The ONLY source in the manifest that speaks to BATO's actual study " +
+      "population. Answers 'where do I go?', which the blind-spot audit " +
+      "ranked as the single most damaging gap for a Davao-based capstone. " +
+      "Curate the free-consultation offer and the named tests; the doctor's " +
+      "lifestyle advice is already covered better by NIDDK/CDC.",
+  },
+  {
+    id: "ddh-laboratory-price-list",
+    rank: 27,
+    title: "Davao Doctors Hospital — Laboratory price list (24 March 2025)",
+    url: "https://ddh.com.ph/wp-content/uploads/2023/09/DDH-Laboratory-List-3.24.25.pdf",
+    kind: "pdf",
+    sourceId: "DDH",
+    scopes: ["general_education"],
+    topicTags: ["cost", "davao", "philippines", "creatinine", "urinalysis"],
+    access: "open",
+    licence: "Davao Doctors Hospital published tariff. Verify reuse terms.",
+    notes:
+      "⚠️ THE ARGUABLE ADMISSION — a private hospital tariff fits none of " +
+      "the three inclusion categories cleanly; see the migration and " +
+      "REVIEW-FLAGS §13. It is the corpus's only peso figure.\n" +
+      "TWO CURATION CONSTRAINTS. (1) Prices go stale faster than any " +
+      "clinical content here: every figure must carry the 24 March 2025 " +
+      "as-of date inline and tell the reader to confirm with the facility. " +
+      "(2) This is a ~540 KB tariff of hundreds of unrelated line items — " +
+      "carry ONLY the kidney-relevant tests. Ingesting the sheet would bury " +
+      "them among oncology and blood-banking rows.",
+  },
+  {
+    id: "philhealth-benefits",
+    rank: 28,
+    title: "PhilHealth — Benefit packages",
+    url: "https://www.philhealth.gov.ph/benefits",
+    kind: "web",
+    sourceId: "PHILHEALTH",
+    scopes: ["general_education"],
+    topicTags: [
+      "philhealth",
+      "coverage",
+      "dialysis",
+      "transplant",
+      "cost",
+      "philippines",
+    ],
+    access: "open",
+    licence: "Philippine government corporation; public information.",
+    notes:
+      "Turns PHESRD's dialysis SESSION COUNTS into the amounts a user needs. " +
+      "Rates change by circular several times a year, so every figure must " +
+      "be dated inline and paired with the standing 'confirm with " +
+      "PhilHealth' advice the DOH file already carries.\n" +
+      "The page does NOT cover Konsulta — do not let curation imply that " +
+      "outpatient screening coverage is answered here. It is still a gap.\n" +
+      "www.philhealth.gov.ph/benefits 301-redirects to .../benefits/ ; the " +
+      "scraper follows it, but expect the redirect in the raw metadata.",
+  },
+  {
+    id: "niddk-healthy-eating-ckd",
+    rank: 29,
+    title: "NIDDK — Eating Right for Chronic Kidney Disease",
+    url:
+      "https://www.niddk.nih.gov/health-information/kidney-disease/chronic-kidney-disease-ckd/healthy-eating-adults-chronic-kidney-disease",
+    kind: "web",
+    sourceId: "NIDDK",
+    scopes: ["general_education"],
+    topicTags: ["diet", "food", "nutrition", "sodium", "potassium", "cooking"],
+    access: "open",
+    licence: "US Government work; public domain.",
+    notes:
+      "⚠️ CARRIES PER-DAY NUTRIENT FIGURES (e.g. a daily sodium limit in mg). " +
+      "REVIEW-FLAGS §6 keeps individualized quantitative lifestyle management " +
+      "out of the corpus, and §12.2 records KDOQI's per-kilogram protein " +
+      "figures being stripped for exactly this reason. A general per-day " +
+      "sodium figure is the borderline case §6 flags for the adviser: it is a " +
+      "population recommendation, not a definition or statistic, so it is " +
+      "excluded by default and admitting it needs sign-off. Strip them here " +
+      "identically — carry the named " +
+      "food groups and cooking methods, defer every quantity to a doctor or " +
+      "dietitian. The value of this source is that it NAMES FOOD; the " +
+      "corpus's existing diet content names none.",
+  },
+  {
+    id: "nkf-healthy-hydration",
+    rank: 30,
+    title: "NKF — Healthy hydration for your kidneys: what to sip and skip",
+    url:
+      "https://www.kidney.org/news-stories/healthy-hydration-your-kidneys-what-to-sip-and-what-to-skip",
+    kind: "web",
+    sourceId: "NKF",
+    scopes: ["general_education"],
+    topicTags: ["drinks", "hydration", "water", "soda", "alcohol", "coffee"],
+    access: "open",
+    licence: "National Kidney Foundation. Verify reuse terms.",
+    notes:
+      "NKF is NOT KDOQI, though both are the National Kidney Foundation — " +
+      "KDOQI is its guideline programme, this ID is its patient education. " +
+      "Do not cross-attribute (same caution as PSH vs PSN).\n" +
+      "The corpus has zero hits for coffee, soda, energy drinks and alcohol, " +
+      "all high-frequency questions. Carry which drinks to favour and limit; " +
+      "carry NO fluid target — 'how many glasses a day' is a prescribed, " +
+      "individual limit and stays deflected (REVIEW-FLAGS §6).",
+  },
 ] as const;
 
 /** Entries the scraper will actually fetch: not local, not excluded. */

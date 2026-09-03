@@ -147,6 +147,46 @@ export const SOURCES: readonly SourceInfo[] = [
     name: "Asian Pacific Society of Nephrology",
     category: "clinical_guideline",
   },
+
+  // --- Admitted 2026-08-30 with SOURCES.md #26-#30, the curation pass aimed
+  // at the two gaps docs/corpus-blind-spots.md ranked first: Philippine
+  // services/cost, and named food and drink. See
+  // 20260830000001_register_services_and_diet_sources.sql, and
+  // knowledge/REVIEW-FLAGS.md §13 for the outstanding adviser questions. ----
+
+  {
+    // The only source in this register that speaks to BATO's actual study
+    // population rather than to a nation or a planet.
+    id: "DAVAOCHO",
+    name: "Davao City Health Office (City Government of Davao)",
+    category: "official_health_body",
+  },
+  {
+    // Benefit rates change by circular several times a year — every figure
+    // cited from PhilHealth must be dated inline in the chunk text.
+    id: "PHILHEALTH",
+    name: "Philippine Health Insurance Corporation (PhilHealth)",
+    category: "official_health_body",
+  },
+  {
+    // ⚠️ The arguable admission: a private hospital tariff, filed here on the
+    // "licensed publisher" reasoning that admits AstraZeneca for the SCORED
+    // card — DDH publishes this as a DOH-licensed clinical laboratory. It is
+    // NOT a claim that DDH is a health authority. Prices are as of 24 March
+    // 2025 and go stale faster than anything else in the corpus.
+    id: "DDH",
+    name: "Davao Doctors Hospital — Laboratory Department price list",
+    category: "official_health_body",
+  },
+  {
+    // NOT KDOQI, though both are the National Kidney Foundation. KDOQI is
+    // NKF's clinical-guideline programme; this ID is NKF's consumer patient
+    // education. Different documents, different evidentiary weight — never
+    // cross-attribute, the same caution that separates PSH from PSN.
+    id: "NKF",
+    name: "National Kidney Foundation (patient education)",
+    category: "official_health_body",
+  },
 ] as const;
 
 /** The ONLY approved source IDs. Reject anything not in this list. */

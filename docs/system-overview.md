@@ -295,11 +295,29 @@ by provenance into `screening-and-risk-factors.md` and
 `peer-reviewed/scored/scored-instrument.md`; the nine sections moved verbatim
 and only `content` is embedded, so the vectors below are unchanged.)
 
-Post-restructure top cosine per term: PVD 0.791, age 0.752, sex 0.740,
-proteinuria 0.738, anemia 0.718, hypertension 0.680, heart failure 0.669, CVD
-0.664, diabetes 0.662. Off-topic controls: 0.489, 0.494. So 0.57 sits in open
-space — 0.09 below the weakest in-scope term, 0.08 above the strongest
-off-topic probe. **If a future edit merges those sections back together, this
+Post-restructure top cosine per term (2026-08-06, 39 chunks): PVD 0.791, age
+0.752, sex 0.740, proteinuria 0.738, anemia 0.718, hypertension 0.680, heart
+failure 0.669, CVD 0.664, diabetes 0.662. Off-topic controls: 0.489, 0.494.
+So 0.57 sat in open space — 0.09 below the weakest in-scope term, 0.08 above
+the strongest off-topic probe.
+
+**Re-measured 2026-08-30** against the live 122-chunk corpus with
+[scripts/measure-clarification.ts](../scripts/measure-clarification.ts), whose
+probe strings are pinned in source so future runs are exactly comparable
+(REVIEW-FLAGS.md §14.8): bp_threshold 0.830, PVD 0.789, uACR 0.789, albumin
+0.782, proteinuria 0.781, CKD definition 0.767, eGFR 0.718, anemia 0.714, age
+0.703, CVD 0.693, hypertension 0.686, heart failure 0.674, diabetes 0.636,
+sex 0.633. Off-topic controls: 0.541, 0.518, 0.513.
+
+**Still a pass, on a margin that has roughly halved.** Every in-scope probe
+clears 0.57 and every control stays below it, but separation is now 0.092
+against ~0.17 in August — 0.063 of headroom below the weakest term and only
+0.029 above the strongest control. `sex` fell 0.107 to become the weakest
+probe, and the weather control rose to 0.541 by matching the PSH
+blood-pressure chunk, which did not exist in the 39-chunk corpus. Adding
+clarification-scoped files gives an off-topic probe more surface to land on;
+treat a control above ~0.55 as a signal to raise the floor rather than widen
+the corpus. **If a future edit merges those sections back together, this
 margin collapses and the engine silently starts deflecting again.**
 
 A chunk may carry *both* scopes. The invariant is "every retrieved passage

@@ -155,6 +155,42 @@ export const SOURCE_REFERENCES: Record<string, SourceReference> = {
     // right destination — the reader lands on the record, not a guess.
     url: "https://onlinelibrary.wiley.com/doi/10.1111/nep.70030",
   },
+
+  // --- Admitted 2026-08-30 (SOURCES.md #26-#30). URLs verified reachable on
+  // 2026-08-30. Unlike most entries above, three of these four ARE single
+  // documents, so the URL is that document rather than a landing page. -----
+
+  DAVAOCHO: {
+    name: "Davao City Health Office (City Government of Davao)",
+    // The CHO statement itself, on the city government's own site.
+    url:
+      "https://davaocity.gov.ph/health/early-consultation-vital-vs-kidney-diseases-says-cho",
+  },
+  PHILHEALTH: {
+    name: "Philippine Health Insurance Corporation (PhilHealth)",
+    // The benefits index rather than a circular: the corpus content is dated
+    // and PhilHealth revises rates by circular, so the reader checking a
+    // figure needs the CURRENT benefits page, not the one that was true when
+    // the chunk was written. Note the site 301-redirects to /benefits/.
+    url: "https://www.philhealth.gov.ph/benefits",
+  },
+  DDH: {
+    name: "Davao Doctors Hospital — Laboratory Department price list",
+    // The tariff PDF itself. This chip matters more than most: the prices are
+    // dated 24 March 2025 and the reader should be able to see that date on
+    // the document rather than take BATO's word for it.
+    url:
+      "https://ddh.com.ph/wp-content/uploads/2023/09/DDH-Laboratory-List-3.24.25.pdf",
+  },
+  NKF: {
+    name: "National Kidney Foundation (patient education)",
+    // The hydration article itself, NOT kidney.org's home page — and NOT the
+    // KDOQI guideline destination, though both IDs are the same organisation.
+    // A reader following an NKF chip must land on patient education; landing
+    // on a clinical guideline would misrepresent what grounded the answer.
+    url:
+      "https://www.kidney.org/news-stories/healthy-hydration-your-kidneys-what-to-sip-and-what-to-skip",
+  },
 };
 
 /** The reference for a source ID, or undefined for an unknown ID. */

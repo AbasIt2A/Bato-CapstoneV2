@@ -1,15 +1,87 @@
-# REVIEW FLAGS — clinical adviser sign-off required before ingestion
+# REVIEW FLAGS — clinical sign-off ledger
 
 This document lists every clinically sensitive or unattributed item in the
-`knowledge/**/*.md` files. A clinical adviser (and/or the manuscript sources)
-MUST verify each item below before `scripts/ingest-knowledge-md.ts` is run.
-Nothing in `knowledge/` has been embedded or ingested — this is a draft.
+`knowledge/**/*.md` files, together with the record of what has been checked
+against primary text and what still needs a human ruling.
 
-All content was converted verbatim (facts unchanged) from the already-vetted
-`supabase/functions/_shared/knowledge-base.ts` and
-`supabase/functions/_shared/rag-content.ts`. No new clinical content was
-fetched or invented. The flags below are the numbers and boundaries that most
-need a second clinical read because they drive what BATO tells users.
+It does three jobs at once, and reading it is much easier once they are told
+apart:
+
+1. **Open questions** awaiting a clinical adviser's ruling.
+2. **Standing editorial policy** the corpus is already built to — §6 above
+   all, which other files cite as binding authority.
+3. **An audit and exclusion record** — what was deliberately left out, when,
+   and why. [docs/corpus-blind-spots.md](../docs/corpus-blind-spots.md) leans
+   on this to distinguish a gap that was chosen from one that was missed.
+
+Because of job 3 the file grows rather than shrinks as items close. Use the
+status index below to find what is actually still open.
+
+**Two corrections to this header, 2026-08-30.** It previously said that
+nothing in `knowledge/` had been embedded or ingested and that the corpus was
+a draft. That has not been true for some time — the corpus is live at 122
+chunks (see `docs/corpus-blind-spots.md`), so the original "verify before
+ingestion" contract was overtaken by events and several items below were
+verified only after the content was already reachable by users. It also named
+`scripts/ingest-knowledge-md.ts`, which does not exist; the script is
+[scripts/ingest-knowledge.ts](../scripts/ingest-knowledge.ts).
+
+The oldest content here was converted verbatim (facts unchanged) from the
+already-vetted `supabase/functions/_shared/knowledge-base.ts` and
+`rag-content.ts`. Everything added since §11 was written from the primary text
+in `scraped/clean/*.md`. No clinical content has ever been invented.
+
+---
+
+## STATUS INDEX
+
+Statuses are defined as:
+
+- **CLOSED** — checked against the primary source text and correct as written.
+  A clinician may still overrule the editorial judgement; the *facts* are
+  confirmed.
+- **ADVISER** — a genuine clinical or policy judgement. No document can settle
+  it. This is the short list a reviewer should actually read.
+- **BLOCKED** — cannot be settled from anything in this repository; needs a
+  document that was never obtained (paywalled, unreachable host, or a live
+  page that must be re-read at submission).
+- **POLICY** — a standing rule, not a question.
+
+| § | Item | Status |
+|---|---|---|
+| 1 | eGFR stage cutoffs | **CLOSED** — §14 |
+| 2 | CKD definition (3-month / GFR-60) | **CLOSED** — §14 |
+| 3 | Age risk thresholds | **CLOSED** — §14 |
+| 4 | SCORED accuracy statistics | **CLOSED** — §14 |
+| 5 | "What to do after screening" attribution | **CLOSED** — §14 |
+| 5 | `safety-boundaries.md`: ingest policy text, or prompts-only? | **ADVISER** |
+| 6 | Qualitative-lifestyle rule | **POLICY** |
+| 6 | Generation-side enforcement gap | **CLOSED** — §14.4, fixed in code |
+| 6 | General-population lifestyle numbers (e.g. "5 g salt/day") | **ADVISER** |
+| 7 | Two DOH figures (39,000 deaths; >64,000 dialysis) | **BLOCKED** |
+| 7 | WHO rank and 95% rise | **BLOCKED** — §14.3 |
+| 8 | PSA content | **BLOCKED** — psa.gov.ph unreachable |
+| 9 | Nine definitions re-read standing alone | **ADVISER** |
+| 10 | Directory layout | **CLOSED** — record only |
+| — | `ckd-stages.md` H3 merge | **CLOSED** — §14.9, measured, no change |
+| 11 | SCORED split, new content | **CLOSED** — §14, one correction made |
+| 11 | APSN progression claim fair for CKD generally? | **ADVISER** |
+| 12.1 | PHCOI and GBD | **BLOCKED** — paywalled |
+| 12.4 | New clinical figures | **CLOSED** — §14.2, sampled |
+| 12.5 | PSH 2020 and PhilHealth currency | **BLOCKED** — re-check at submission |
+| 12.6 | Re-measure `scopes.ts` cosines | **CLOSED** — §14.8, margin halved |
+| 13.1 | Four source IDs admitted without an adviser meeting | **ADVISER** |
+| 13.2 | DDH as `official_health_body` | **ADVISER** |
+| 13.3 | §6 applied to the diet/drink files | **CLOSED** — record only |
+| 13.4 | Peso and coverage figures | **CLOSED** — §14.2 |
+| 13.4 | Which DDH price column was quoted | **CLOSED** — §14.2 |
+| 13.6 | DAVAOCHO scope limits | **CLOSED** — §14.2 |
+| — | `treatment-dialysis-transplant.md` front-matter | **CLOSED** — §14.5 |
+| — | NSAID/herbal sentence attribution | **ADVISER** — new, §14.5 |
+
+**Everything a clinical adviser must personally rule on is the seven ADVISER
+rows.** The BLOCKED rows need documents, not judgement. The CLOSED rows are
+recorded for traceability and need no action.
 
 ---
 
@@ -81,17 +153,63 @@ section from ingestion.
   this policy text should live only in prompts.ts and NOT be ingested as a
   retrievable chunk.**
 
-## 6. Diet section is fully qualitative — `knowledge/official-health-body/niddk/diet-and-lifestyle.md`
+## 6. Individualized lifestyle management stays qualitative — `knowledge/official-health-body/niddk/diet-and-lifestyle.md`
 
-The diet/lifestyle content (`Food, drink, and CKD`, `Living with CKD`,
-`Body weight and a healthy weight for your kidneys`, `Keeping kidneys
-healthy`) contains **no numeric thresholds** — no gram limits, no fluid
-volumes, no potassium/phosphorus targets, and no BMI cut-offs. It is entirely
-qualitative ("less salt", "may be advised on how much protein", "limits are
-individual — no one should restrict these on their own"). This is stated
-explicitly so the adviser knows there are no diet numbers to verify; the only
-diet-review point is that it stays qualitative and defers quantitative limits
-to a doctor or dietitian.
+**The standing rule (restated 2026-08-30).** Individualized diet and lifestyle
+management stays qualitative. The General CKD Chatbot may give general,
+evidence-based information about healthy eating, body weight and physical
+activity, but it must not state an individualized quantitative target for
+nutrient intake, protein, sodium, potassium, phosphorus, fluid, calories, body
+weight, weight loss, or exercise. Quantitative clinical information is still
+permitted when it is a factual definition, a classification, a validated
+screening rule, a laboratory interpretation, or a population-level statistic
+carried by an approved source.
+
+The boundary is therefore **not numbers versus no numbers**. It is *factual
+numerical education* versus *individualized numerical management*. That is what
+reconciles this section with §12.4, which lists roughly two dozen numeric claims
+the corpus deliberately does carry (eGFR 60, ACR 30 mg/g, the A1–A3 bands,
+≥140/90, the burden statistics): every one of those is a definition,
+classification or statistic, and none of them is a target set for a user.
+
+The earlier wording of this rule said diet content carries "no numeric
+thresholds". That was too narrow in one direction and too broad in the other.
+Too narrow, because a user asking how many kilograms to lose, how many minutes
+to exercise, or what daily calorie target to hit is not asking a *diet*
+question, yet raises exactly the same safety issue — and the weight section
+described below is itself not diet content. Too broad, because read as a
+corpus-wide principle it would condemn §12.4 wholesale. No content changed when
+the wording was corrected: the corpus contains no lifestyle quantity of any
+kind — no g/day, no exercise minutes, no calorie figure, no BMI cut-off.
+
+**One line the adviser should rule on explicitly.** *General* population
+lifestyle recommendations that happen to carry a number — WHO's "less than 5 g
+of salt a day", or a national "150 minutes of activity a week" — are neither a
+definition nor a statistic, so this rule excludes them by default. Nothing of
+that kind is in the corpus today. Treat any future proposal to add one as a
+change needing sign-off, not as material already covered by "it comes from an
+approved source".
+
+**Enforcement note.** This is a curation rule *and* a generation rule, and the
+two are not the same guarantee. Keeping the numbers out of the corpus stops the
+chatbot inventing 0.6 g/kg/day, because it can only answer from retrieved
+chunks. It does **not** stop the chatbot taking a *permitted* number and
+applying it to the person asking — "your blood pressure should be under 140/90"
+is fully grounded in the PSH chunk and is still individualized management. See
+§12.5, which already marks that figure as the highest-stakes number in the
+corpus. Closing that path needs a matching line in the system prompt
+(`supabase/functions/_shared/prompts.ts`), alongside the existing rule against
+estimating a user's personal risk.
+
+**What the file itself contains.** The diet/lifestyle content (`Food, drink,
+and CKD`, `Living with CKD`, `Body weight and a healthy weight for your
+kidneys`, `Keeping kidneys healthy`) has no gram limits, no fluid volumes, no
+potassium/phosphorus targets and no BMI cut-offs. It is entirely qualitative
+("less salt", "may be advised on how much protein", "limits are individual —
+no one should restrict these on their own"). This is stated explicitly so the
+adviser knows there are no diet numbers to verify; the only diet-review point
+is that it stays qualitative and defers quantitative limits to a doctor or
+dietitian.
 
 **The weight section is NEW (2026-08-11) — VERIFY.** It was added because live
 testing showed BATO deflecting "what is the healthy weight for a good kidney"
@@ -439,10 +557,15 @@ and each one caused specific material to be excluded:
    the drug classes from CDC's risk-reduction list, KDOQI's per-kilogram
    protein prescriptions, PSH's blood-pressure targets and drug tables, APSN's
    therapy chapters, and Chen et al.'s management and drug-dosing sections.
-2. **Diet content stays qualitative** (§6). KDOQI's numeric targets —
-   0.55–0.60 g protein/kg/day and the rest — are all excluded. The KDOQI file
-   instead documents *why* those numbers cannot be self-applied, which is what
-   makes it useful to a chatbot that must not state them.
+2. **Individualized quantitative lifestyle management is excluded** (§6).
+   No individualized target for nutrient intake, protein, sodium, potassium,
+   phosphorus, fluid, calories, body weight, weight loss or exercise. KDOQI's
+   numeric targets — 0.55–0.60 g protein/kg/day and the rest — are all excluded
+   under this rule. The KDOQI file instead documents *why* those numbers cannot
+   be self-applied, which is what makes it useful to a chatbot that must not
+   state them. Factual numbers — definitions, classifications, validated
+   screening rules, laboratory interpretations, population statistics — are
+   unaffected, which is why §12.4 exists.
 3. **No untraceable prevalence figures** (§7). See §12.3.
 4. **Foreign statistics are labelled as foreign.** Every CDC figure is US data
    and is worded that way in the text; a US prevalence read as a Philippine one
@@ -561,3 +684,480 @@ consequences to watch when the thresholds in `scopes.ts` are next measured:
   only because the corrected method note above made them visible.
 - Inline "(NIDDK, KDIGO)"-style tags were preserved in the text so the
   General CKD Chatbot's generator can still cite sources per fact.
+
+## 13. Services, cost and named food/drink — five new files (2026-08-30) — ALL NEW, VERIFY
+
+Closes the two gaps [docs/corpus-blind-spots.md](../docs/corpus-blind-spots.md)
+ranked first and second: Philippine services/cost, and named Filipino food and
+drink. Both were rated as the questions a Filipino user asks earliest and the
+corpus answered worst — the audit found **zero peso figures** and **zero hits
+for coffee, soda, energy drinks or alcohol** across the 122 chunks.
+
+Every file was written from the primary text in `scraped/clean/*.md`; nothing
+was inferred or taken from a secondary source.
+
+| New file | Source | SOURCES.md # | Scopes |
+|---|---|---|---|
+| `knowledge/official-health-body/davaocho/kidney-checkups-in-davao-city.md` | DAVAOCHO | 26 | general |
+| `knowledge/official-health-body/ddh/kidney-test-costs-davao.md` | DDH | 27 | general |
+| `knowledge/official-health-body/philhealth/coverage-for-kidney-treatment.md` | PHILHEALTH | 28 | general |
+| `knowledge/official-health-body/niddk/foods-to-choose-and-limit.md` | NIDDK | 29 | general |
+| `knowledge/official-health-body/nkf/drinks-and-kidney-health.md` | NKF | 30 | general |
+
+All five are single-scoped `general_education`. None touches a SCORED variable,
+and §9 records what happens when the clarification scope is diluted with
+content that competes with the per-variable definitions — do not admit any of
+these to it.
+
+### 13.1 FOUR NEW SOURCE IDs — the approval provenance the adviser must rule on
+
+`DAVAOCHO`, `PHILHEALTH`, `DDH` and `NKF` were registered in
+`20260830000001_register_services_and_diet_sources.sql` and mirrored in
+`_shared/sources.ts`. NIDDK (#29) needed no row — registered since 2026-07-08.
+
+**`adviser_approved_on` is set to 2026-08-30 for all four, and that date does
+NOT record an adviser sign-off meeting.** It records the date they were
+admitted at the developer's direction so the ingested chunks carry a coherent
+audit trail. This is the first batch in the project's history admitted without
+a prior approval date, and it is logged here rather than left implicit. The
+adviser should confirm all four, or name which to retire — retiring one means
+deleting its register row and its file; nothing else in the corpus depends on
+any of them.
+
+### 13.2 `DDH` — the genuinely arguable admission
+
+A private hospital's own tariff is **not** a health authority, **not** a
+guideline and **not** peer-reviewed literature. It fits none of the three
+inclusion categories cleanly.
+
+It is filed as `official_health_body` on the narrowest defensible reading: DDH
+publishes the list as a DOH-licensed clinical laboratory, so the document is
+that facility's official published schedule of charges. This is the same
+"licensed publisher" reasoning that admits AstraZeneca Philippines for the
+SCORED card — it is **not** a claim that DDH is a health authority.
+
+The alternative was to leave the corpus with no peso figure at all. Recorded as
+a live question, not a settled one. If the adviser rejects it, delete the
+register row and `knowledge/official-health-body/ddh/`.
+
+### 13.3 REVIEW-FLAGS §6 was applied to BOTH new diet/drink files
+
+The two food-and-drink sources each carried lifestyle quantities. None reached
+the corpus:
+
+| Source figure | Where it appears | Disposition |
+|---|---|---|
+| Daily sodium limit in mg (Dietary Guidelines for Americans) | NIDDK #29 | **Excluded.** §6 names this exact case — a general-population lifestyle recommendation that happens to carry a number is neither a definition, a classification nor a statistic. |
+| Nutrition Facts %Daily Value rules for "high" and "low" sodium | NIDDK #29 | **Excluded**, on the stronger ground: a quantity the reader applies to their own intake is individualized numerical management outright. |
+| Per-cup tables — calories, sugar, potassium, phosphorus, sodium in mg for named juices and milks | NKF #30 | **Excluded.** Composition figures a reader would use to decide how much to drink. The qualitative comparison they support (plant milks generally lower in potassium and phosphorus than dairy) IS carried. |
+| "Two or more servings of cola per day"; "more than one serving of sweetened beverage per day" | NKF #30 | **Excluded.** A per-day serving count reads as a personal allowance. Both studies are described qualitatively, as associations from self-reported intake. |
+
+**The corpus still contains no lifestyle quantity of any kind** — no g/day, no
+mg/day, no serving counts, no fluid volume, no exercise minutes, no BMI
+cut-off. §6's statement to that effect survives this batch intact.
+
+No fluid target is carried. "How many glasses of water a day" stays deflected,
+and NKF supports that directly: it states there is no one-size-fits-all amount
+and lists what it depends on.
+
+### 13.4 The numbers that ARE carried — all cost and coverage, all dated
+
+These are the first PESO figures in the corpus. None is a clinical value and
+none is a target set for a user; every one is a published price or benefit
+rate, which is a factual statistic under §6's
+definitional/classification/statistic carve-out. **Every one is perishable and
+every one is dated inline in the chunk text.**
+
+| Claim | Figure | Source as cited | File | Confidence |
+|---|---|---|---|---|
+| Creatinine, blood, cash price | **₱354** | DDH list, as of 24 Mar 2025 | kidney-test-costs-davao | High — read from the tariff |
+| Urinalysis (automated), cash | **₱200** | DDH, same | kidney-test-costs-davao | High |
+| BUN / urea, cash | **₱367** | DDH, same | kidney-test-costs-davao | High |
+| Creatinine clearance, cash | **₱540** | DDH, same | kidney-test-costs-davao | High |
+| Microalbumin–creatinine ratio, 24h urine, cash | **₱750** | DDH, same | kidney-test-costs-davao | High |
+| Uric acid, cash | **₱453** | DDH, same | kidney-test-costs-davao | High |
+| Albumin, cash | **₱392** | DDH, same | kidney-test-costs-davao | High |
+| Hemodialysis case rate | **₱6,350 per session** | PhilHealth benefits page, retrieved 30 Aug 2026 | coverage-for-kidney-treatment | High — stated on the page |
+| Hemodialysis annual limit | **90 days/year**, 1 session = 1 day | PhilHealth, same | coverage-for-kidney-treatment | High |
+| Kidney transplant Z Benefit range | **₱865,000 – ₱2,146,000** | PhilHealth, same | coverage-for-kidney-treatment | High — read from the package table |
+
+**Two verification points for the adviser.**
+
+First, **the DDH sheet lists several prices per test name** (standard, "service
+case", "LAB nGO", "DDH P.E.", emergency). The figures above are the standard
+Laboratory-department **cash** column. The existence of lower "service case"
+rates is mentioned in the text without claiming who qualifies, because the
+tariff does not define eligibility. Confirm that reading.
+
+Second, **PhilHealth rates change by circular several times a year.** The
+figures were read from the live benefits page on 30 August 2026 and are dated
+as such in the text, alongside the standing "confirm with PhilHealth" advice
+that `doh/kidney-health-philippines.md` already carries. Re-verify at
+submission — this is now the most perishable content in the corpus, ahead of
+the epidemiology in §7.
+
+### 13.5 Deliberate omissions
+
+- **PhilHealth transplant selection criteria** (PRA thresholds, GFR cutoffs,
+  hepatitis/HIV status, cancer history) were NOT carried. They are written for
+  transplant centres deciding who qualifies; a layperson reading them about
+  themselves is doing the personal-risk self-assessment `safety-boundaries.md`
+  forbids. The text says a transplant team decides.
+- **Phosphate and potassium binder medicines** (NIDDK #29) were NOT carried —
+  `safety-boundaries.md` forbids medicine content.
+- **US Medicare / insurance coverage of medical nutrition therapy** (NIDDK #29)
+  was NOT carried; it would actively mislead a Filipino reader.
+- **The DDH tariff's hundreds of non-kidney line items** were NOT carried.
+  Ingesting them would bury the kidney rows in retrieval.
+- **Coffee and tea** are NOT covered — the NKF article does not address them,
+  so neither does the file. The blind-spot audit lists coffee as a gap and it
+  **remains one**. Do not read a position on coffee out of the caffeine clause
+  under energy drinks.
+
+### 13.6 Two gaps this batch does NOT close
+
+- **PhilHealth Konsulta.** The benefits page does not mention it, so the corpus
+  still cannot say whether outpatient kidney SCREENING is covered — which is
+  the question a Screen Positive user is most likely to ask about cost.
+  Closing it needs a PhilHealth circular.
+- **DAVAOCHO scope.** The Davao source supports exactly one service claim: that
+  district health centres offer free consultation and can run the listed basic
+  tests. It establishes no opening hours, no requirements to bring, and does
+  not say whether the TESTS are free as distinct from the consultation. The
+  file sends the reader to the centre for those rather than filling them in.
+
+---
+
+## 14. Primary-source verification pass (2026-08-30)
+
+Every item in this document that could be settled by reading a document was
+checked against the primary text in `scraped/clean/`. This section records
+what was checked, against what, and what came of it. It closes twelve of the
+items in the status index and opens one new one.
+
+**What this pass is not.** Nothing here is a clinical adviser's sign-off. It
+confirms that what the corpus says matches what the cited source says. It
+cannot confirm that the source is the right source, that the editorial
+judgement was sound, or that a figure is still current. Those remain the
+ADVISER and BLOCKED rows.
+
+### 14.1 SCORED — §3, §4, §11 (source: `scraped/clean/scored-bang-2007.md`)
+
+Every SCORED figure verifies exactly against the paper.
+
+| Item | Corpus | Paper | Location |
+|---|---|---|---|
+| Age 50–59 | 2 points | 2 | Table 2; Figure 2 |
+| Age 60–69 | 3 points | 3 | Table 2; Figure 2 |
+| Age ≥70 | 4 points | 4 | Table 2; Figure 2 |
+| Age <50 | 0 points | reference group | Table 2 footnote |
+| Other eight variables | 1 point each | 1 each | Table 2 |
+| Cutoff ≥4 | sens 92 / spec 68 / PPV 18 / NPV 99 | 92 / 68 / 18 / 99 | Abstract; Table 3 |
+| Cutoff ≥6 | sens 68 / spec 87 | 68 / 87 | Table 3 |
+| Unsure answers | score zero | "If a statement is not true or you are not sure, put a zero" | Figure 2 |
+| Re-screen interval | about once a year | "at least once a year" | Figure 2 |
+| CKD definition used | eGFR < 60 | eGFR < 60 | Abstract; Table 2 footnote |
+| Total range | 0–12 | 4 + (8 × 1) | by summation |
+| Limitations | weighted to common risk factors; flags many over-70s; not for ADPKD or glomerulonephritis; no hematuria or family history | all four stated | LIMITATIONS |
+| AUC 0.88 / 0.71 | deliberately omitted | present in paper | Abstract; Table 3 |
+
+The point weights were already cross-checked against
+`supabase/functions/_shared/scored.ts` when §11 was written; that check still
+holds. **Corpus and scorer agree.**
+
+**One correction made.** `scored-instrument.md` said the tool "was developed
+on 8,530 adults". The 8,530 is the pooled analytic sample; the paper split it
+into a development set of 5,666 (Table 2) and a held-back internal validation
+set of 2,864 (Table 3), and the accuracy figures above come from the latter.
+The sentence was not wrong so much as it omitted the split, which reads as if
+there were no held-out set at all. It now says one part of the group was used
+to work out the score and a separate part was held back to check it. The exact
+subgroup sizes were deliberately kept out of the user-facing text — they are
+noise at a 6th-grade reading level — and are recorded here instead.
+
+**This edit changes a chunk's embedding.** `scored-instrument.md` must be
+re-ingested for it to reach users. Chunk boundaries are unchanged (the edit is
+inside one H2), so the chunk count and §9's one-H2-per-variable constraint are
+unaffected.
+
+### 14.2 Guidelines, figures and costs — §1, §2, §12.4, §13.4, §13.6
+
+| Item | Verified against | Result |
+|---|---|---|
+| Stage cutoffs ≥90 / 60–89 / 45–59 / 30–44 / 15–29 / <15 | `kdigo-2024-ckd-guideline.md` CGA table | Exact. Stage 3 as 30–59 correctly merges G3a+G3b |
+| "with signs of damage" qualifier on stages 1–2 | same | Correct — G1/G2 require damage markers |
+| CKD = damage or GFR<60 for ≥3 months | same, CKD definition and the G3a–G5 passage | Exact |
+| A1 <30 / A2 30–300 / A3 >300 mg/g | same, albuminuria table | Exact |
+| PSH hypertension ≥140/90 mmHg | `ph-hypertension-cpg-2020.md` | Exact, and the file's note that this is deliberately not AHA/ACC 130/80 is supported verbatim |
+| NICE: repeat eGFR within 2 weeks, creatinine ±5% | `nice-ng203-ckd.md` rec. 1.1.8 | Exact |
+| NICE: ACR ≥3 mg/mmol clinically important | same, rec. 1.1.13 | Exact |
+| WHO: 674 million, 9%, 5th by 2050, +33% | `who-wha78-6-kidney-health.md` preamble | Exact |
+| DDH: 354 / 200 / 367 / 540 / 750 / 453 / 392 | `ddh-laboratory-price-list.md` | All seven exact |
+| PhilHealth: ₱6,350 per session; 90-day limit; ₱865,000–₱2,146,000 | `philhealth-benefits.md` | All exact |
+| DAVAOCHO scope limits | `davao-cho-early-consultation.md` | §13.6's description is precisely right |
+
+**§13.4's first verification point is now closed.** It asked the adviser to
+confirm that the quoted DDH figures are the standard cash rates. The price
+table's header is `| Department | Procedure | Cash | HMO |` — the quoted
+figures are the first numeric column, which is **Cash**. The second column is
+the HMO rate, not a "standard" rate. The separately-listed `SERVICE CASE -`
+line items are genuinely lower (creatinine ₱187, urinalysis ₱61, uric acid
+₱178), which supports the file's decision to mention that lower rates exist
+without claiming who qualifies — the tariff states no eligibility rule.
+
+**§13.6's DAVAOCHO limits are confirmed, and the distinction is real.** The
+article says the CHO urged residents to avail themselves of *free medical
+consultations*, and that the district centres "offer free consultations with
+laboratories capable of conducting essential tests such as creatinine,
+urinalysis, complete blood count, cholesterol, and uric acid". The word "free"
+attaches to the consultation. The tests are described as available, never as
+free. The file's refusal to say the tests are free is correct and must survive
+any future edit.
+
+### 14.3 §7's WHO figures have no primary source in this repository
+
+§7 rates the WHO rank (19th in 2000 → 9th in 2021) and the ≈95% rise in
+kidney disease deaths as **"High — named WHO publication"**. That confidence
+is not supported by anything here. The publication named is WHO's *The top 10
+causes of death* fact sheet, and **it was never scraped** — `scraped/clean/`
+holds only `who-pen-primary-care.md` and `who-wha78-6-kidney-health.md`,
+neither of which contains either figure.
+
+This does not mean the figures are wrong. It means their confidence rating was
+recorded from the strength of the publication rather than from having read it,
+and no one can check them from this repository. They sit alongside the two DOH
+figures §7 already flags as "Medium — VERIFY FIRST", and should be treated the
+same way: **fetch the fact sheet and confirm both numbers, or pull them.**
+Corrected here rather than left implicit, because a "High" rating invites a
+reviewer to skip exactly the check these figures most need.
+
+### 14.4 §6's enforcement gap is closed in code
+
+§6 identified a gap it could not close by curation: keeping lifestyle
+quantities out of the corpus stops BATO inventing them, but does not stop it
+taking a *permitted* number and applying it to the person asking. §6 named
+`supabase/functions/_shared/prompts.ts` as where the matching rule had to go.
+
+That rule now exists, as a section of `GENERAL_CHAT_SYSTEM_PROMPT` titled
+**"NUMBERS ARE GENERAL FACTS, NEVER PERSONAL TARGETS"**. It forbids four
+things: restating a threshold as the user's own target; saying what the user
+should do to reach or stay under a number; doing arithmetic against a figure
+the user reports about themselves; and supplying a general figure when asked
+what amount is right for them personally.
+
+The rule is written **without any literal clinical number**. An earlier draft
+illustrated it with a real blood-pressure threshold, which would have
+contradicted the grounding rule directly above it — the model could then emit
+that threshold with no retrieved chunk supporting it. `tests/prompts_test.ts`
+now asserts the rule is present, and adds that threshold to the list of
+content the prompt must never embed.
+
+The pre-existing style-section rule against estimating a user's personal risk
+was left in place; it covers risk, not numeric targets, which is why §6's gap
+survived it.
+
+### 14.5 `treatment-dialysis-transplant.md` — resolved, with one new flag
+
+The attribution method note listed this file as the last open front-matter
+mismatch: `source: NIDDK`, but with KDIGO-, WHO- and CDC-cited sentences.
+
+**It does not need the §11 treatment, and the flag is closed.** The §11 split
+was necessary because an entire instrument's findings — a coherent block with
+a single non-NIDDK owner — were being stored as NIDDK. Here there is no such
+block. The file is two H2 sections of NIDDK-substance patient education, and
+the other tags are sentence-level corroboration. NIDDK's own pages support the
+load-bearing claims:
+
+| Claim | NIDDK primary text |
+|---|---|
+| CKD usually cannot be cured, but treatment can slow it | `niddk-what-is-ckd.md` — "typically can't be reversed"; "slow its progression" |
+| Controlling blood pressure and blood sugar is the core | `niddk-ckd-hub.md` — "the most important step you can take to treat kidney disease is to control your blood pressure"; blood glucose named alongside |
+| Regular monitoring of eGFR, urine albumin, BP | `niddk-tests-diagnosis.md` — creatinine used to estimate GFR; UACR; repeat testing to confirm |
+
+**NEW FLAG — one sentence does not trace to NIDDK.** The file says people with
+CKD should avoid medicines and supplements that can harm the kidneys,
+including regular NSAID use and herbal products that claim to "cleanse" the
+kidneys, tagged **(NIDDK)**. Neither local NIDDK source contains it. NIDDK
+supports only the general form: "avoiding medicines that can injure the
+kidneys". The specific claim appears almost verbatim in **CHEN2019**
+(`chen-grams-jama-2019.md`: "Routine administration of NSAIDs in CKD is not
+recommended"; herbal remedies "reported to cause a myriad of kidney
+abnormalities"), which is **not** in this file's `citations` list.
+
+This is most likely a scrape-coverage gap rather than a real misattribution —
+NIDDK does publish NSAID guidance on pages outside `scraped/clean/`, and the
+file predates CHEN2019's curation by five weeks. Three options, for the
+adviser: cite the NIDDK page that carries it and add nothing; add `CHEN2019`
+to `citations` and tag the sentence; or soften to NIDDK's general wording. The
+claim itself is not in doubt — only which approved source the corpus is
+standing on when it makes it.
+
+### 14.6 §5's first item is closed
+
+"What to do after screening" carried no inline citation and was assigned
+`NIDDK` to satisfy the DB CHECK constraint. NIDDK is the correct attribution:
+`niddk-tests-diagnosis.md` carries the serum-creatinine-to-estimate-GFR path,
+the urine albumin test, and the instruction to repeat an abnormal urine result
+to confirm — which is exactly what the section tells a Screen Positive user to
+do. No reassignment needed.
+
+§5's **second** item is untouched and remains ADVISER. Whether
+`safety-boundaries.md` — BATO's own operational policy, not sourced clinical
+fact — should be a retrievable chunk at all, or live only in `prompts.ts`, is
+a design decision about the system, not a question any document answers.
+Worth noting for whoever rules on it: §14.4 has just put the substance of that
+policy into `prompts.ts` directly, so the two now overlap more than they did.
+
+### 14.7 What this pass did not touch
+
+Unchanged and still open: every BLOCKED row (§7's DOH figures, §7's WHO
+figures per §14.3, §8's PSA content, §12.1's paywalled PHCOI and GBD, §12.5's
+currency checks) and every ADVISER row. No
+figure was added to the corpus, no source was admitted or retired, and no
+editorial exclusion was reversed.
+
+### 14.8 §12.6's cosine re-measurement — done, and the margin has halved
+
+§12.6 asked for the clarification scope's per-term cosines to be re-measured
+before the next ingestion, because the thresholds in `scopes.ts` were set
+against a 39-chunk corpus and the Top-20 curation took it to 121. This was
+listed as blocked on an embedding key; the key was in `.env` all along, so it
+was not blocked at all. It has now been run.
+
+`scripts/measure-clarification.ts` is read-only — it embeds a pinned probe
+battery and runs the `match_knowledge_chunks` RPC against whatever is
+currently ingested. It performs no INSERT, UPDATE or DELETE. Measured against
+the live 122-chunk corpus on 2026-08-30:
+
+| Probe | 2026-08-30 | 2026-08-06 | Δ |
+|---|---|---|---|
+| bp_threshold | 0.830 | — | new |
+| pvd | 0.789 | 0.791 | −0.002 |
+| uacr | 0.789 | — | new |
+| albumin | 0.782 | — | new |
+| proteinuria | 0.781 | 0.738 | +0.043 |
+| ckd_definition | 0.767 | — | new |
+| egfr | 0.718 | — | new |
+| anemia | 0.714 | 0.718 | −0.004 |
+| age | 0.703 | 0.752 | −0.049 |
+| cvd | 0.693 | 0.664 | +0.029 |
+| hypertension | 0.686 | 0.680 | +0.006 |
+| chf | 0.674 | 0.669 | +0.005 |
+| diabetes | 0.636 | 0.662 | −0.026 |
+| **sex** | **0.633** | 0.740 | **−0.107** |
+| control_weather | **0.541** | 0.489 | **+0.052** |
+| control_tech | 0.518 | — | new |
+| control_recipe | 0.513 | 0.494 | +0.019 |
+
+**The verdict is a pass.** Every in-scope probe clears `fallbackSimilarity`
+(0.57); every off-topic control stays below it. No threshold needs to change
+today.
+
+**But the margin that justifies 0.57 has roughly halved, and both ends moved
+toward each other.** Separation between the weakest in-scope probe and the
+strongest control is now **0.092**, against ~0.17 in August. Headroom is
+0.063 below the weakest term and only **0.029** above the strongest control.
+
+Two specific movements are worth recording:
+
+- **`sex` fell 0.107**, the largest drop of any term, and is now the weakest
+  in-scope probe at 0.633. Its runner-up is 0.005 behind it, so two chunks are
+  effectively tied for a question users do ask mid-questionnaire.
+- **`control_weather` ROSE to 0.541**, and it now matches the PSH
+  blood-pressure chunk — a chunk that did not exist in the 39-chunk corpus.
+  This is the predictable cost of adding clarification-scoped files: an
+  off-topic probe has more surface to land on. §12.6 predicted the pressure on
+  "high blood pressure" specifically, and that is exactly where it landed.
+
+**Guidance for the next person.** Re-run the script after any change to this
+scope's membership. Treat a control above ~0.55 as a signal to raise the floor
+rather than to widen the corpus again. The five new 2026-08-30 files are all
+`general_education` and cannot touch this scope, so they do not disturb these
+numbers — but they are also not yet ingested, so this measurement describes
+the 122-chunk corpus, not the 150-chunk one that a full ingestion would create.
+
+**One caveat on comparability.** The 2026-08-06 run recorded its results but
+never its probe strings, and they cannot be reconstructed. The deltas above
+are indicative only — a different phrasing of a term moves the cosine by more
+than the drift being looked for. The probes are now pinned in the script, so
+every run from this one onward is exactly comparable. Do not edit them.
+
+Figures written back to `supabase/functions/_shared/scopes.ts` and
+`docs/system-overview.md`, as the script instructs.
+
+### 14.9 `ckd-stages.md` uses H3 headings — measured, and it is fine
+
+`clinical-guidelines/kdigo/ckd-stages.md` puts its five stages under `###`
+headings, so `scripts/chunker.ts` merges all five into **one 1064-char
+chunk** (it only splits at H3 above 2500 characters). That is structurally the
+same pattern §9 diagnosed as harmful for the nine SCORED variables, so it was
+measured rather than assumed.
+
+Read-only probe against the live corpus, `general_education` scope, top cosine
+and runner-up:
+
+| Probe | Top | Matched | Runner-up | Margin |
+|---|---|---|---|---|
+| "what are the stages of chronic kidney disease" | 0.768 | CKD Stages > Stages of CKD | 0.730 | 0.038 |
+| "what is stage 3 kidney disease" | 0.730 | CKD Stages > Stages of CKD | 0.706 | 0.024 |
+| "what is stage 5 kidney disease" | 0.740 | CKD Stages > Stages of CKD | 0.710 | 0.030 |
+| "what does stage 1 CKD mean" | 0.766 | CKD Stages > Stages of CKD | 0.739 | 0.027 |
+| "what is stage 4 kidney disease" | 0.715 | CKD Stages > Stages of CKD | 0.696 | 0.019 |
+| "my eGFR is 45 what stage is that" | 0.768 | CKD Stages > Stages of CKD | 0.702 | 0.066 |
+
+**The stages chunk wins every stage-specific query**, at 0.715–0.768 against a
+`general_education` rerank threshold of 0.30. **No change needed. Do not split
+this file.**
+
+**Why this differs from §9.** The nine SCORED variables are nine semantically
+*unrelated* terms — anemia, peripheral vascular disease, proteinuria — so one
+shared embedding sat far from each of them and a query for any single term
+competed against eight distant concepts. The five CKD stages are one concept
+at five severities. Their shared embedding sits close to every stage query, so
+merging helps here where it hurt there. §9's constraint is about semantic
+spread within a chunk, not about heading level as such — worth stating,
+because "use H2, never H3" is the wrong lesson to carry away from §9.
+
+**An incidental finding worth keeping.** The strongest probe of the six was
+"my eGFR is 45 what stage is that" (0.768) — a user asking to have their own
+number interpreted. Retrieval will hand the generator a chunk containing every
+stage boundary, and nothing in retrieval can stop it answering "that is stage
+3a". What stops it is the rule added in §14.4, which forbids comparing a
+figure the user reports about themselves against a threshold or telling them
+which side of a boundary they fall on. This is a concrete instance of the gap
+§6 identified and §14.4 closed, and a good manual test case.
+
+### 14.10 Deployment state after this pass — ingestion deliberately NOT run
+
+**The corpus was left at 122 live chunks. Ingestion was considered and held,
+on 2026-08-30, at the developer's direction.**
+
+`scripts/ingest-knowledge.ts` has no per-file mode: a real run rebuilds
+`public.knowledge_chunks` wholesale (delete all, then batch insert). Running
+it today would take the corpus from 122 to 150 chunks and, as a side effect of
+shipping the §14.1 correction, would make the five 2026-08-30 files reachable
+by users — including the DDH tariff and the PhilHealth rates, whose source
+admission §13.1 records as carrying no adviser sign-off and §13.2 describes as
+a live question. The script's own header requires checkpoint approval before a
+real run, and that approval was deliberately withheld here.
+
+Consequences to carry forward:
+
+- **The §14.1 SCORED correction is in `knowledge/` but not in the database.**
+  Users still receive the older wording. This is acceptable because the
+  correction is a precision fix about sample provenance, not a safety or
+  clinical-accuracy problem.
+- **The five 2026-08-30 files remain unpublished**, which is the correct state
+  while §13.1 and §13.2 are open.
+- **Both measurements in §14.8 and §14.9 describe the 122-chunk corpus.** They
+  must be re-run after the next ingestion, because §14.8's margin is already
+  thin (0.029 above the strongest off-topic control) and the next ingestion
+  adds 28 chunks.
+- Nothing else in this pass depends on ingestion. The §14.4 prompt rule lives
+  in `prompts.ts` and takes effect on the next Edge Function deploy, not on
+  re-embedding.
+
+**When ingestion does happen**, the order that keeps this ledger honest is:
+rule on §13.1 and §13.2 first, then ingest, then re-run
+`scripts/measure-clarification.ts` and update §14.8, `scopes.ts` and
+`docs/system-overview.md` with that run's numbers.

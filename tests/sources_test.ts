@@ -43,6 +43,17 @@ const EXPECTED_IDS = [
   "KDOQI",
   "ISN",
   "APSN",
+  // Admitted 2026-08-30 with SOURCES.md #26-#30 (Philippine services/cost,
+  // and named food and drink) —
+  // 20260830000001_register_services_and_diet_sources.sql.
+  //
+  // NKF is the National Kidney Foundation's consumer patient education and is
+  // deliberately a SEPARATE ID from KDOQI, which is the same organisation's
+  // clinical-guideline programme. Both are expected here.
+  "DAVAOCHO",
+  "PHILHEALTH",
+  "DDH",
+  "NKF",
 ];
 
 Deno.test("APPROVED_SOURCE_IDS: exactly the approved set, order-insensitive", () => {
@@ -66,7 +77,14 @@ Deno.test("isApprovedSource: false for pending or unapproved sources", () => {
   // this test is written against a literal list rather than a negation of
   // APPROVED_SOURCE_IDS, which would have passed silently either way.
   const rejected = [
-    "NKF",
+    // NKF used to sit here too and was admitted on 2026-08-30, for the same
+    // reason ISN moved: the list is literal so an admission has to be made
+    // deliberately in both places.
+    //
+    // "PhilHealth" STAYS rejected and is not a mistake — the registered ID is
+    // "PHILHEALTH", and isApprovedSource is case-sensitive by contract. This
+    // is now the case-variant guard: the plausible-looking wrong casing must
+    // not open the register.
     "PhilHealth",
     "NKDEP",
     "WebMD",

@@ -12,9 +12,12 @@ last_updated: 2026-08-11
 # CKD stage and dialysis status. NONE of it is carried into the corpus. Two
 # independent reasons, either of which is sufficient:
 #
-#   1. REVIEW-FLAGS.md §6 records the standing editorial decision that BATO's
-#      diet content carries no numeric thresholds and defers every quantitative
-#      limit to a doctor or dietitian.
+#   1. REVIEW-FLAGS.md §6 records the standing editorial decision that
+#      individualized quantitative lifestyle management stays qualitative: no
+#      individual target for protein, sodium, potassium, phosphorus, fluid,
+#      calories, body weight or exercise, every such limit deferred to a doctor
+#      or dietitian. (Factual numbers — definitions, lab bands, statistics —
+#      are permitted; that is the §12.4 material. These figures are neither.)
 #   2. safety-boundaries.md forbids treatment plans outright, and every one of
 #      those figures is prescribed "under close clinical supervision" in the
 #      guideline itself — a person applying one to themselves from a chatbot is

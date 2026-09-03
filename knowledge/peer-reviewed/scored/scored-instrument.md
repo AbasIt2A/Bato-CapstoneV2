@@ -32,10 +32,12 @@ scoring tool (Bang et al., 2007) that estimates the chance a person already
 has reduced kidney function without knowing it. It uses only age, sex and
 medical history — no blood test and no urine test are needed to take it.
 
-It was developed on 8,530 adults in the US National Health and Nutrition
-Examination Survey and externally validated in the Atherosclerosis Risk in
-Communities study. Throughout the study, "reduced kidney function" means an
-estimated filtering rate (GFR) below 60 mL/min/1.73m² (SCORED).
+It was built from 8,530 adults in the US National Health and Nutrition
+Examination Survey: one part of that group was used to work out the score,
+and a separate part was held back to check it. It was then tested again in a
+different study altogether, the Atherosclerosis Risk in Communities study.
+Throughout the study, "reduced kidney function" means an estimated filtering
+rate (GFR) below 60 mL/min/1.73m² (SCORED).
 
 ## The nine things the SCORED questions ask about
 
