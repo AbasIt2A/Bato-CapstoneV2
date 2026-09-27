@@ -17,3 +17,6 @@ frontend/dist/
 # OS / editor noise
 Thumbs.db
 .DS_Store
+
+# Vercel CLI project link
+.vercel

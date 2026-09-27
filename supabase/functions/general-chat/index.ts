@@ -90,6 +90,7 @@ import {
   corsHeaders,
   createServiceClient,
   jsonResponse,
+  resolveCorsOrigin,
 } from "../_shared/supabase.ts";
 import type { RetrievalScope } from "../_shared/scopes.ts";
 
@@ -151,6 +152,12 @@ function serviceError(): Response {
 }
 
 Deno.serve(async (req) => {
+  const response = await handleRequest(req);
+  response.headers.set("Access-Control-Allow-Origin", resolveCorsOrigin(req));
+  return response;
+});
+
+async function handleRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -432,4 +439,4 @@ Deno.serve(async (req) => {
     console.error("general-chat: unexpected error:", err);
     return serviceError();
   }
-});
+}
