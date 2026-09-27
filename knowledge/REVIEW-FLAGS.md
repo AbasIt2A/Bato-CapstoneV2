@@ -70,16 +70,17 @@ Statuses are defined as:
 | 12.4 | New clinical figures | **CLOSED** — §14.2, sampled |
 | 12.5 | PSH 2020 and PhilHealth currency | **BLOCKED** — re-check at submission |
 | 12.6 | Re-measure `scopes.ts` cosines | **CLOSED** — §14.8, margin halved |
-| 13.1 | Four source IDs admitted without an adviser meeting | **ADVISER** |
-| 13.2 | DDH as `official_health_body` | **ADVISER** |
+| 13.1 | Four source IDs admitted without an adviser meeting | **CLOSED** — approved 2026-09-28 |
+| 13.2 | DDH as `official_health_body` | **CLOSED** — approved 2026-09-28 |
 | 13.3 | §6 applied to the diet/drink files | **CLOSED** — record only |
 | 13.4 | Peso and coverage figures | **CLOSED** — §14.2 |
 | 13.4 | Which DDH price column was quoted | **CLOSED** — §14.2 |
 | 13.6 | DAVAOCHO scope limits | **CLOSED** — §14.2 |
 | — | `treatment-dialysis-transplant.md` front-matter | **CLOSED** — §14.5 |
 | — | NSAID/herbal sentence attribution | **ADVISER** — new, §14.5 |
+| 15 | New NIDDK kidney-stone content | **CLOSED** — approved 2026-09-28 |
 
-**Everything a clinical adviser must personally rule on is the seven ADVISER
+**Everything a clinical adviser must personally rule on is the five ADVISER
 rows.** The BLOCKED rows need documents, not judgement. The CLOSED rows are
 recorded for traceability and need no action.
 
@@ -724,6 +725,9 @@ adviser should confirm all four, or name which to retire — retiring one means
 deleting its register row and its file; nothing else in the corpus depends on
 any of them.
 
+**Approved 2026-09-28:** The user confirmed approval of the pending corpus
+sources. The 2026-08-30 register date remains the original admission date.
+
 ### 13.2 `DDH` — the genuinely arguable admission
 
 A private hospital's own tariff is **not** a health authority, **not** a
@@ -739,6 +743,8 @@ SCORED card — it is **not** a claim that DDH is a health authority.
 The alternative was to leave the corpus with no peso figure at all. Recorded as
 a live question, not a settled one. If the adviser rejects it, delete the
 register row and `knowledge/official-health-body/ddh/`.
+
+**Approved 2026-09-28** as part of the user's corpus approval.
 
 ### 13.3 REVIEW-FLAGS §6 was applied to BOTH new diet/drink files
 
@@ -1085,6 +1091,15 @@ every run from this one onward is exactly comparable. Do not edit them.
 Figures written back to `supabase/functions/_shared/scopes.ts` and
 `docs/system-overview.md`, as the script instructs.
 
+**2026-09-28, 152-chunk corpus:** The same pinned probes still pass after
+ingestion. Weakest in-scope: sex 0.634; strongest control: weather 0.540;
+separation 0.094. The 0.57 fallback floor has 0.064 headroom below the weakest
+term and 0.030 above the strongest control. No threshold change was needed.
+
+**2026-09-28, 171-chunk corpus:** Repeated the pinned probes after the broader
+kidney-topic ingestion. Results remain sex 0.634 and weather 0.540, with the
+same 0.094 separation. The 0.57 fallback floor remains unchanged.
+
 ### 14.9 `ckd-stages.md` uses H3 headings — measured, and it is fine
 
 `clinical-guidelines/kdigo/ckd-stages.md` puts its five stages under `###`
@@ -1161,3 +1176,41 @@ Consequences to carry forward:
 rule on §13.1 and §13.2 first, then ingest, then re-run
 `scripts/measure-clarification.ts` and update §14.8, `scopes.ts` and
 `docs/system-overview.md` with that run's numbers.
+
+## 15. Kidney-stone education — approved 2026-09-28
+
+`knowledge/official-health-body/niddk/kidney-stones.md` adds general signs,
+diagnostic tests and medicine-risk guidance from NIDDK's kidney-stone
+[symptoms](https://www.niddk.nih.gov/health-information/urologic-diseases/kidney-stones/symptoms-causes),
+[diagnosis](https://www.niddk.nih.gov/health-information/urologic-diseases/kidney-stones/diagnosis),
+and [treatment](https://www.niddk.nih.gov/health-information/urologic-diseases/kidney-stones/treatment)
+pages. No drug dose or individualized diagnosis is included. `approved: true`
+allows offline chunk validation. The user confirmed approval of this content
+and the pending §13 corpus items on 2026-09-28.
+
+## 16. Broader kidney-condition education — approved 2026-09-28
+
+New general-education summaries cover:
+
+- `knowledge/official-health-body/niddk/common-kidney-conditions.md` — kidney
+  infection, PKD, glomerular disease, hematuria, and simple cysts;
+- `knowledge/official-health-body/nkf/acute-kidney-injury.md` — AKI;
+- `knowledge/official-health-body/nkf/glomerulonephritis.md` — a dedicated
+  glomerulonephritis explanation;
+- `knowledge/official-health-body/niddk/other-kidney-conditions.md` — nephrotic
+  syndrome, lupus nephritis, and IgA nephropathy;
+- `knowledge/official-health-body/nkf/kidney-medicine-safety.md` — pain
+  medicines and medicine review with reduced kidney function;
+- `knowledge/official-health-body/niddk/kidney-imaging-and-biopsy.md` — kidney
+  imaging, contrast, and biopsy;
+- three new sections in `knowledge/official-health-body/niddk/kidney-stones.md`
+  — stone types, treatments, and diet-based prevention.
+
+Every new section cites an official NIDDK or NKF page; both source IDs are
+already registered as `official_health_body`. On 2026-09-28 the user approved
+the initial five new files, three added kidney-stone sections, and publication
+of the broader general-chat prompt. A live answer then grouped diabetes with
+causes of glomerulonephritis; the NIDDK passage was tightened and a dedicated
+NKF glomerulonephritis passage was added as an accuracy correction. All six new
+files are marked `approved: true` and were ingested. This approval is recorded
+separately from §15's earlier approval of the original two stone sections.

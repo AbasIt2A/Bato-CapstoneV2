@@ -158,6 +158,10 @@ function envNumber(name: string, fallback: number): number {
  * scope's membership, and treat a control above ~0.55 as a signal to raise
  * the floor rather than to widen the corpus again.
  *
+ * Re-measured 2026-09-28 after ingesting 171 chunks: weakest in-scope 0.634
+ * (sex), strongest off-topic 0.540 (weather). Both still clear the 0.57 floor
+ * with 0.064 and 0.030 headroom respectively; no threshold change needed.
+ *
  * If a future edit merges the per-variable sections back together, this
  * margin collapses and the engine starts silently deflecting again; the
  * file's front-matter carries a warning to that effect.

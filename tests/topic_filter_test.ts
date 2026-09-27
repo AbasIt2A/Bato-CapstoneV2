@@ -16,6 +16,7 @@ Deno.test("blocks diagnostic claims", () => {
     "I diagnose you with kidney failure.",
     "Your diagnosis is stage 3 CKD.",
     "You don't have kidney disease, no need to see a doctor.",
+    "You probably have a kidney stone.",
     "There is a 70% chance that you have CKD.",
     // "because"/"since" assert the diagnosis as fact rather than supposing
     // it, so they must stay blocked even though other conjunctions are
@@ -41,6 +42,7 @@ Deno.test("passes normal screening/awareness language", () => {
     "The question is asking if a doctor or health worker has ever told you that you have anemia.",
     "It asks whether you have hypertension — that means high blood pressure.",
     "If you have diabetes, regular kidney check-ups are recommended.",
+    "If you have a kidney stone, a clinician can explain your treatment options.",
     // Generic/conditional "you" — how health education addresses a reader in
     // general, not a claim about this user. These are the phrasings grounded
     // educational answers actually produce; both tripped the filter before

@@ -30,7 +30,7 @@ surfaces plus an evaluation survey:
    (Bang et al., 2007) driven by a **deterministic state machine with no LLM
    anywhere on the scoring path**, with an LLM **Clarification Engine** as a
    read-only side branch for "what does *proteinuria* mean?" asides.
-2. **General CKD Chatbot** — free-form Q&A about CKD, answered only from a
+2. **General Kidney Health Chatbot** — free-form Q&A about kidney health, answered only from a
    curated corpus via hardened retrieval-augmented generation, deflecting
    anything off-topic.
 3. **Evaluation** — SUS / TAM / TiMT instruments captured for the study.
@@ -145,7 +145,7 @@ On the final answer the function recomputes the total from stored responses
 and **fails loudly if the recomputed total does not equal the sum of the
 per-step `points_awarded` already written** — a corruption tripwire.
 
-### 4.2 `general-chat` — General CKD Chatbot
+### 4.2 `general-chat` — General Kidney Health Chatbot
 
 [supabase/functions/general-chat/index.ts](../supabase/functions/general-chat/index.ts).
 Stateless on the server, scope hard-locked to `general_education` in code
@@ -320,6 +320,10 @@ treat a control above ~0.55 as a signal to raise the floor rather than widen
 the corpus. **If a future edit merges those sections back together, this
 margin collapses and the engine silently starts deflecting again.**
 
+**Re-measured 2026-09-28 after the 171-chunk ingestion:** the weakest in-scope
+probe is 0.634 (sex) and the strongest off-topic probe is 0.540 (weather).
+All probes still separate at the 0.57 fallback floor; the threshold is unchanged.
+
 A chunk may carry *both* scopes. The invariant is "every retrieved passage
 carries the requested scope", not corpus disjointness.
 
@@ -356,7 +360,7 @@ clarification alters a recorded variable.
   skipped entirely.
 - Layer 2 **fails open** on API error (availability beats strictness) because
   the rerank threshold and the output guard still stand behind it.
-- CKD-only scope is enforced at **three** layers: input gate → rerank
+- Kidney-health scope is enforced at **three** layers: input gate → rerank
   relevance threshold → system-prompt refusal. Off-topic questions get the
   approved deflection even when benign.
 - The clarification engine uses its **own gate prompt**: the

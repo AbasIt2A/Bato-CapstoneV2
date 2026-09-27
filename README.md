@@ -6,9 +6,8 @@ It replaces system-prompt grounding with retrieval-augmented generation over a
 curated, adviser-approved markdown knowledge base stored in Supabase/pgvector,
 behind a CKD-only scope guardrail and anti–prompt-injection defenses.
 
-> **Scope note:** this project contains ONLY the General CKD Information Chatbot.
-> The Risk Assessment Chatbot (SCORED screening controller + bounded Clarification
-> Engine) is a separate system and is intentionally absent here.
+The frontend also includes the SCORED Risk Assessment flow. Its `screening` and
+`clarify` Edge Functions use the same Supabase project as `general-chat`.
 
 ## Pipeline
 
@@ -159,6 +158,6 @@ deno task check:providers -- --skip-gemini
 # ⛔ approval required beyond this point
 npx supabase db push                     # apply migrations
 deno task ingest                         # embed + insert chunks (uses .env)
-npx supabase functions deploy general-chat clarify  # deploy the Edge Functions
+npx supabase functions deploy general-chat screening clarify  # deploy the Edge Functions
 deno task test:live                      # full live suite (uses .env)
 ```

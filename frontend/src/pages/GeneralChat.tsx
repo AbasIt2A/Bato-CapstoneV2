@@ -25,7 +25,7 @@ type Turn = UserTurn | BotTurn;
 
 const STARTERS = [
   "What is CKD?",
-  "What are the stages of CKD?",
+  "How are kidney stones diagnosed?",
   "How do I keep my kidneys healthy?",
   "Does PhilHealth cover dialysis?",
 ];
@@ -165,9 +165,8 @@ export default function GeneralChat() {
         {turns.length === 0 && (
           <div className="empty">
             <p className="empty-lead">
-              Ask me about kidney health and chronic kidney disease (CKD) —
-              what it is, its stages and symptoms, prevention, treatment, and
-              kidney care in the Philippines.
+              Ask me about kidney conditions, tests, medicines, prevention,
+              and kidney care in the Philippines.
             </p>
             <div className="starters">
               {STARTERS.map((q) => (

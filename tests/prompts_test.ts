@@ -28,7 +28,7 @@ Deno.test("DEFLECTION_MESSAGE: exact approved wording", () => {
   );
 });
 
-Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: states the CKD-only scope boundary", () => {
+Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: states the kidney-health scope boundary", () => {
   const namesCkd = includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "chronic kidney disease") ||
     includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "CKD");
   const statesBoundary = includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "only answer") ||
@@ -36,8 +36,9 @@ Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: states the CKD-only scope boundary", () =
     includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "topic boundary") ||
     includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "out of scope") ||
     includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "decline");
-  assertEquals(namesCkd, true, "prompt must name CKD/kidney scope");
-  assertEquals(statesBoundary, true, "prompt must state the CKD-only boundary");
+  assertEquals(namesCkd, true, "prompt must name CKD");
+  assertEquals(includesCI(GENERAL_CHAT_SYSTEM_PROMPT, "acute kidney injury"), true);
+  assertEquals(statesBoundary, true, "prompt must state the kidney-health boundary");
 });
 
 Deno.test("GENERAL_CHAT_SYSTEM_PROMPT: never-reveal-instructions language is present", () => {

@@ -54,7 +54,7 @@ keeps the bot on-topic and makes it much harder to trick.
 
 | Path | What it is |
 |---|---|
-| `knowledge/**/*.md` | The knowledge base: 9 curated CKD markdown files (approved sources only), filed by source category — `official-health-body/{doh,who,niddk}/`, `clinical-guidelines/kdigo/`, `peer-reviewed/` |
+| `knowledge/**/*.md` | Curated CKD source files, filed under `official-health-body/`, `clinical-guidelines/`, and `peer-reviewed/` |
 | `knowledge/REVIEW-FLAGS.md` | Ledger of clinical/diet numbers awaiting adviser review |
 | `scripts/chunker.ts` | Splits markdown into chunks along headings |
 | `scripts/ingest-knowledge.ts` | Embeds the chunks and inserts them into the database (⛔ gated) |
@@ -62,9 +62,9 @@ keeps the bot on-topic and makes it much harder to trick.
 | `supabase/functions/general-chat/` | The chatbot Edge Function (the pipeline above) |
 | `supabase/functions/_shared/` | Building blocks: gate, embeddings, retrieval, rerank, prompts, output guard |
 | `tests/` | Deno test suite: injection battery, deflection, rerank fallback, chunker, and more |
-| `frontend/` | The web app (Vite + React): home screen with both chatbots — Risk Assessment (capstone backend) and General CKD chat (this project's backend) |
+| `frontend/` | The web app (Vite + React): both chatbots use this project's Supabase backend |
 | `docs/manuscript-alignment.md` | Plain-language summary for your capstone manuscript |
-| `.env` | Your secret keys (already partly filled in — never commit this file) |
+| `.env` | Your local server keys (copy from `.env.example`; never commit this file) |
 | `deno.json` | The `deno task ...` shortcuts used throughout this guide |
 
 ---
@@ -77,7 +77,7 @@ explicitly approves it. For you, that means getting your adviser's sign-off (or
 consciously giving your own) *before* running these steps:
 
 - **Step 5 ⛔ — apply the database migration** (creates tables in a real database)
-- **Step 6 ⛔ — run the ingestion** (writes 21 embedded chunks into that database)
+- **Step 6 ⛔ — run the ingestion** (writes embedded knowledge chunks into that database)
 - **Step 7 ⛔ — deploy the chatbot function** (puts code live on the internet)
 
 Everything else in this guide (tests, dry runs, key setup) is read-only and safe
@@ -87,33 +87,21 @@ to run any time. The ⛔ symbol marks the gated steps below.
 
 ## 4. Step 0: check your tools
 
-Both tools you need are already installed. Open PowerShell and confirm:
+Install [Deno 2](https://docs.deno.com/runtime/getting_started/installation/)
+and Node.js 22.12 or newer, then open a new PowerShell terminal and confirm:
 
 ```powershell
 deno --version
 node --version
 ```
 
-Expected: `deno` prints a 2.x version (plus v8 and typescript lines), and `node`
-prints `v24.x`. Node v24 means you can run the Supabase CLI without installing
-anything, via `npx supabase <command>`.
-
-**If `deno` says "not recognized":** Deno is installed at
-`C:\Users\bonoy\.deno\bin\deno.exe` and that folder is on your PATH — but a
-program only reads the PATH when it starts. If VS Code (or your terminal) was
-already open when Deno was installed, it is still using the old PATH. Two fixes:
-
-- **Permanent:** fully close and reopen VS Code (the whole app, not just the
-  terminal tab). After that, `deno` works everywhere.
-- **Right now, without restarting:** paste this line to reload the PATH into the
-  current terminal, then try again:
-
-  ```powershell
-  $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
-  ```
-
-- **Fallback:** call the full path directly, e.g.
-  `& "$env:USERPROFILE\.deno\bin\deno.exe" --version`.
+Expected: `deno` prints a 2.x version and `node` prints v22.12 or newer.
+On Windows, `winget install DenoLand.Deno` installs Deno. If `deno` is not
+recognized after installation, restart your terminal so it picks up the new PATH.
+If PowerShell blocks `npm.ps1` or `npx.ps1`, run
+`Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` once.
+This [user-scoped setting](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)
+lets locally installed npm scripts run without changing the machine-wide policy.
 
 ---
 
@@ -123,8 +111,8 @@ already open when Deno was installed, it is still using the old PATH. Two fixes:
 deno task test
 ```
 
-Expected: **68 passed, 8 ignored**. The 8 ignored ones are live tests that need
-a real database — they run later in Step 9. The 68 offline tests cover the
+Expect the offline tests to pass; live tests that need a real database are
+ignored until Step 9. The offline tests cover the
 prompt-injection battery, scope deflection, the rerank fallback, chunking rules,
 the approved-sources whitelist, and the output guard — all without any network.
 
@@ -137,21 +125,19 @@ deno task ingest:dry
 ```
 
 This is a **dry run**: no network, no database — it just chunks the knowledge
-files and prints a stats table. Expected: **34 chunks across 9 files**, with
-**5 chunks flagged**. Each file is listed by its path under `knowledge/` (e.g.
+files and prints a stats table. Each file is listed by its path under `knowledge/` (e.g.
 `official-health-body/who/statistics-and-burden.md`), and each table row is one
 chunk: its file, heading path, and size. "Flagged" means the chunk contains diet
 or clinical numbers (like eGFR thresholds or nutrient amounts) that need adviser
-review before going live. All
-5 flags are already tracked in `knowledge/REVIEW-FLAGS.md` — the dry run prints
-them every time so a human always sees what clinical content is about to be
-embedded.
+review before going live. Review the flagged content and
+`knowledge/REVIEW-FLAGS.md` before ingestion.
 
 ---
 
 ## 7. Step 3: your API keys
 
-Your keys live in `.env` in the project root. It already exists.
+Your keys live in `.env` in the project root. Create it from the template if
+needed: `Copy-Item .env.example .env`. Fill in the real values yourself.
 
 **Gemini.** `GEMINI_API_KEY` powers embeddings and answer generation. Make a
 key at https://aistudio.google.com/apikey and paste it into `GEMINI_API_KEY=`.
@@ -239,7 +225,7 @@ Option A — it is free and completely isolated.
 A **migration** is a SQL script that sets up the database schema. Find your
 project ref first: it is the short id in your project URL,
 `https://<project-ref>.supabase.co`. Then, from the project folder
-(`E:\BATO CHATBOT V2`):
+(the folder containing `deno.json`):
 
 ```powershell
 npx supabase login
@@ -277,13 +263,10 @@ expected.
 
 *Gated step — get sign-off before running (see section 3).*
 
-The deployed function does not read your local `.env` — you give it secrets
-through Supabase. Open your `.env`, copy the real values, and run (skip
-`COHERE_API_KEY` or `GROQ_API_KEY` if you don't have one):
-
-```powershell
-npx supabase secrets set GEMINI_API_KEY=your-real-gemini-key GROQ_API_KEY=your-groq-key COHERE_API_KEY=your-cohere-key ALLOWED_ORIGIN=https://your-frontend-url
-```
+The deployed functions do not read your local `.env`. In the Supabase dashboard,
+set the Edge Function secrets `GEMINI_API_KEY` and `ALLOWED_ORIGIN`. Add
+`GROQ_API_KEY` and `COHERE_API_KEY` if you have them. Enter the values there so
+they do not appear in your PowerShell command history.
 
 `ALLOWED_ORIGIN` is the website address your frontend will call the chatbot
 from — in production set it to your real frontend URL; while testing you can
@@ -296,10 +279,10 @@ functions and collapse the per-chatbot model split that keeps them on separate
 daily quotas. The code defaults are already distinct; leave them alone, or set
 `GEMINI_MODEL` and `CLARIFY_GEMINI_MODEL` together to two different models.
 
-Then deploy both functions:
+Then deploy all three functions:
 
 ```powershell
-npx supabase functions deploy general-chat clarify
+npx supabase functions deploy general-chat screening clarify
 ```
 
 ---
@@ -366,36 +349,28 @@ deno task test:live
 ```
 
 This runs the same suite as Step 1, but with your `.env` loaded and network
-access allowed — so the 8 previously-ignored tests now run too, checking real
-retrieval relevance against your live database. Expected: **76 passed**.
+access allowed — so the previously ignored live tests run too, checking real
+retrieval relevance against your live database.
 
 ---
 
 ## 14. Step 10: run the frontend
 
-This project has its own web app in `frontend/` (do not confuse it with the
-capstone's frontend in `E:\BATO Capstone\frontend` — that one belongs to the
-old project). Like the capstone app, its home screen offers both chatbots:
+This project has a web app in `frontend/`. Its home screen offers both chatbots:
 
-- **Check my CKD risk** (`/assessment`) — the SCORED Risk Assessment. The
-  screening state machine, scoring rules, and clarification assistant still
-  run on the **original capstone Supabase project's** deployed `screening`
-  and `clarify` functions; this frontend calls them as-is (anonymous
-  sign-in, consent gate first). Nothing about the scoring was copied or
-  reimplemented here.
+- **Check my CKD risk** (`/assessment`) — the SCORED Risk Assessment, backed by
+  this project's `screening` and `clarify` functions.
 - **Ask about kidney health** (`/chat`) — the hardened General CKD chatbot,
-  backed by THIS project's `general-chat` function.
+  backed by this project's `general-chat` function.
 
-One-time setup (already done if `frontend/.env` exists): copy
-`frontend/.env.example` to `frontend/.env` and fill in all four values —
-`VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` from this project's
-**Project Settings → Data API**, and `VITE_ASSESSMENT_SUPABASE_URL` +
-`VITE_ASSESSMENT_SUPABASE_PUBLISHABLE_KEY` from the capstone project's same
-page. Then:
+Copy `frontend/.env.example` to `frontend/.env` and fill in its two public
+values, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, from this project's
+**Project Settings → Data API**. Enable anonymous sign-ins in Supabase
+Authentication. Then, from the project root:
 
 ```powershell
-cd "E:\BATO CHATBOT V2\frontend"
-npm install    # first time only
+cd frontend
+npm ci    # first time only
 npm run dev
 ```
 
@@ -412,7 +387,7 @@ the public URL and redeploy (see Step 7).
 
 | Symptom | Fix |
 |---|---|
-| `deno` is not recognized | VS Code was open before Deno was installed, so it has a stale PATH. Fully restart VS Code (permanent fix), or paste `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')` into the current terminal, or call `C:\Users\bonoy\.deno\bin\deno.exe` directly. See Step 0 |
+| `deno` is not recognized | Install Deno 2, then reopen the terminal so PATH is refreshed. See Step 0 |
 | Gemini returns `503 UNAVAILABLE` | Temporary overload on Google's side — wait and retry. The deployed chatbot fails safe (it deflects instead of crashing) |
 | Tests fail after you edit code | Run `deno task check` to find type errors first, then re-run `deno task test` |
 | `db push` errors about an existing table | You linked a project that already has `knowledge_chunks` — almost certainly the capstone project. See the Option B warning in Step 4 |

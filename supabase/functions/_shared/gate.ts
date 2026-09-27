@@ -411,6 +411,8 @@ Set "in_scope" to true ONLY when the message is about: kidneys or renal
 health; chronic kidney disease (CKD) — what it is, its stages, symptoms,
 causes, complications, risk factors, or prevention; diet, food, drink, or
 lifestyle in relation to kidney health or CKD; dialysis or kidney transplant;
+kidney stones, including general signs, diagnostic tests, and risks of
+medicines used for stones (even when the question is phrased personally);
 kidney screening or laboratory tests; kidney health in the Philippines (for
 example DOH programs, the Philippine Society of Nephrology, or PhilHealth
 coverage of kidney care); or when and where to seek professional care for a

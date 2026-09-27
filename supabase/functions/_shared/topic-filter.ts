@@ -21,7 +21,7 @@ const DIAGNOSTIC_PATTERNS: RegExp[] = [
   //
   // Deliberately NOT exempted: "because"/"since" ("because you have CKD…"),
   // which assert the diagnosis as established fact rather than supposing it.
-  /(?<!\b(?:told|tells?|telling|asked|asks|asking|if|whether|when|whenever|once|unless|while)\s+(?:you\s+)?(?:that\s+)?)\byou\s+(almost\s+certainly\s+|probably\s+|likely\s+|definitely\s+|clearly\s+)?(have|don'?t\s+have|do\s+not\s+have|are\s+suffering\s+from)\s+(chronic\s+kidney\s+disease|ckd|kidney\s+disease|kidney\s+failure|renal\s+(disease|failure)|diabetes|hypertension|anemia|heart\s+failure)\b/i,
+  /(?<!\b(?:told|tells?|telling|asked|asks|asking|if|whether|when|whenever|once|unless|while)\s+(?:you\s+)?(?:that\s+)?)\byou\s+(almost\s+certainly\s+|probably\s+|likely\s+|definitely\s+|clearly\s+)?(have|don'?t\s+have|do\s+not\s+have|are\s+suffering\s+from)\s+(?:a\s+)?(chronic\s+kidney\s+disease|ckd|kidney\s+disease|kidney\s+failure|kidney\s+stones?|renal\s+(disease|failure)|diabetes|hypertension|anemia|heart\s+failure)\b/i,
   /\b(i|we)\s+(can\s+)?diagnos\w+\s+you\b/i,
   /\byour?\s+diagnosis\s+is\b/i,
   /\byou\s+(have|got)\s+(stage\s+\d)\b/i,
