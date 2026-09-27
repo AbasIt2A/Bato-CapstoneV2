@@ -31,6 +31,10 @@ export default function ResultsScreen({
             kidney check — usually a blood test (creatinine/eGFR) and a urine
             test. Early detection makes a real difference.
           </p>
+          <p>
+            <Link to="/facilities">Find a nearby clinical laboratory</Link> for
+            the blood test. Confirm test availability with the facility first.
+          </p>
         </>
       ) : (
         <>

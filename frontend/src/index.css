@@ -54,6 +54,7 @@ body {
 
 .site-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -91,6 +92,7 @@ body {
 
 .site-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -229,6 +231,120 @@ body {
 }
 
 .card.about {
+  margin-bottom: 8px;
+}
+
+/* ---------- facility locator ---------- */
+
+.locator-page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 2px 28px;
+}
+
+.locator-intro h1 {
+  margin: 0 0 6px;
+  font-size: 1.5rem;
+}
+
+.locator-intro p {
+  margin: 0 0 16px;
+  color: var(--ink-soft);
+}
+
+.locator-controls label:first-child {
+  font-weight: 600;
+}
+
+.locator-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.locator-control-row select {
+  flex: 1 1 250px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.locator-or {
+  margin: 8px 0 !important;
+}
+
+.locator-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  cursor: pointer;
+}
+
+.locator-toggle input {
+  margin-top: 5px;
+  accent-color: var(--accent);
+}
+
+.locator-results {
+  margin: 22px 0;
+}
+
+.locator-results h2 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+}
+
+.locator-notice {
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 9px 12px;
+}
+
+.locator-map {
+  height: 380px;
+  max-height: 55vh;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 12px 0 18px;
+}
+
+.facility-list {
+  display: grid;
+  gap: 12px;
+  padding-left: 24px;
+}
+
+.facility-item h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.facility-item p {
+  overflow-wrap: anywhere;
+}
+
+.facility-heading {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.facility-heading span {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.locator-disclaimer {
   margin-bottom: 8px;
 }
 

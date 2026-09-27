@@ -22,6 +22,9 @@ export default function Home() {
           <Link className="button-link big" to="/chat">
             Ask about kidney health
           </Link>
+          <Link className="button-link big" to="/facilities">
+            Find a laboratory
+          </Link>
         </div>
       </section>
 

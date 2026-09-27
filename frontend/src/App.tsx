@@ -1,8 +1,11 @@
+import { lazy, Suspense } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import GeneralChat from "./pages/GeneralChat";
 import AssessmentChat from "./features/assessment/AssessmentChat";
 import EvaluationForm from "./features/evaluation/EvaluationForm";
+
+const FacilityLocator = lazy(() => import("./features/locator/FacilityLocator"));
 
 export default function App() {
   return (
@@ -20,6 +23,7 @@ export default function App() {
         <nav className="site-nav">
           <NavLink to="/assessment">Risk Assessment</NavLink>
           <NavLink to="/chat">Ask about CKD</NavLink>
+          <NavLink to="/facilities">Find a laboratory</NavLink>
           <NavLink to="/evaluate">Feedback</NavLink>
         </nav>
       </header>
@@ -29,6 +33,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/assessment" element={<AssessmentChat />} />
           <Route path="/chat" element={<GeneralChat />} />
+          <Route path="/facilities" element={<Suspense fallback={<p>Loading facility locator…</p>}><FacilityLocator /></Suspense>} />
           <Route path="/evaluate" element={<EvaluationForm />} />
           <Route path="*" element={<Home />} />
         </Routes>

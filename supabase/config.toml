@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.clarify]
 verify_jwt = true
+
+[functions.facility-locator]
+verify_jwt = true
