@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { getPlaces, searchFacilities, type LocatorResults, type Place, type SearchLocation, type FacilityResult } from "./api";
+import { approximateDeviceLocation } from "./device-location";
 import { getResultNotice } from "./result-notice";
 import LocatorMap from "./LocatorMap";
 
@@ -77,18 +78,20 @@ export default function FacilityLocator() {
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         if (id !== requestId.current) return;
-        // Approximate location is enough for ranking and avoids sending precise device coordinates.
-        void runSearch({
-          latitude: Math.round(coords.latitude * 100) / 100,
-          longitude: Math.round(coords.longitude * 100) / 100,
-        }, includeLevel1);
+        const location = approximateDeviceLocation(coords);
+        if (!location) {
+          setBusy(false);
+          setError("Your browser location is too imprecise to identify your city. Choose a city or municipality manually, or try a more accurate device.");
+          return;
+        }
+        void runSearch(location, includeLevel1);
       },
       () => {
         if (id !== requestId.current) return;
         setBusy(false);
         setError("Location was unavailable or permission was declined. Choose a city or municipality instead.");
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
@@ -132,6 +135,9 @@ export default function FacilityLocator() {
         {error && <p className="error-text" role="alert">{error}</p>}
         {results && <>
           <h2>Laboratories near {results.locationLabel}</h2>
+          {currentSearch.current && "latitude" in currentSearch.current && (
+            <p className="hint">If your browser placed you in the wrong city, choose your city or municipality above.</p>
+          )}
           {notice && <p className="locator-notice">{notice}</p>}
           {results.facilities.length > 0 && <>
             <p className="hint">Map pins show representative barangay locations, not exact laboratory premises. Check the address before travelling.</p>
