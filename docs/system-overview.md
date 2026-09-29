@@ -127,8 +127,9 @@ Three functions, all `verify_jwt = true`, all CORS-gated by `ALLOWED_ORIGIN`
 [_shared/screening-flow.ts](../supabase/functions/_shared/screening-flow.ts).
 
 **It has no LLM dependency of any kind (FR-4).** Actions: `start`, `answer`,
-`status`, `abandon`. Invalid input re-asks the same step with a deterministic
-message; the LLM is never consulted to interpret an answer.
+`status`, `abandon`. Invalid input re-asks the same step with a prewritten
+message whose wording may vary; the LLM is never consulted to interpret an
+answer.
 
 Scoring lives in [_shared/scored.ts](../supabase/functions/_shared/scored.ts),
 a pure, import-free module — the only place in the system where a SCORED total

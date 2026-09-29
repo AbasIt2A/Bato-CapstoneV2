@@ -3,6 +3,7 @@ import { getPlaces, searchFacilities, type LocatorResults, type Place, type Sear
 import { approximateDeviceLocation } from "./device-location";
 import { getResultNotice } from "./result-notice";
 import LocatorMap from "./LocatorMap";
+import "./locator.css";
 
 const TOGGLE_LABEL = "Also show laboratories where creatinine testing is not a required service";
 
@@ -100,11 +101,18 @@ export default function FacilityLocator() {
   return (
     <div className="locator-page">
       <header className="locator-intro">
+        <span className="locator-eyebrow">Laboratory directory</span>
         <h1>Find a clinical laboratory</h1>
         <p>Explore nearby laboratories in Davao Region for a serum creatinine blood test. Level 2 and Level 3 laboratories are shown by default because routine clinical chemistry is required at those service levels.</p>
       </header>
 
       <section className="card locator-controls" aria-label="Choose a search location">
+        <div className="locator-section-heading">
+          <div>
+            <h2>Choose a location</h2>
+            <p>Search by city or municipality, or use your device location.</p>
+          </div>
+        </div>
         <form onSubmit={submitPlace}>
           <label htmlFor="locator-place">City or municipality in Davao Region</label>
           <div className="locator-control-row">
@@ -115,44 +123,62 @@ export default function FacilityLocator() {
             <button className="button-link accent" type="submit" disabled={!selectedCode || busy}>Find laboratories</button>
           </div>
         </form>
-        <p className="locator-or">or</p>
-        <button className="button-link" type="button" onClick={useDeviceLocation} disabled={busy}>Use my approximate location</button>
-        <p className="hint">Your browser asks permission only when you choose this option. Location is used for this search and is not saved by BATO.</p>
+        <div className="locator-alternative">
+          <span className="locator-or">Or</span>
+          <button className="button-link locator-location-button" type="button" onClick={useDeviceLocation} disabled={busy}>Use my approximate location</button>
+          <p className="hint">Your browser asks permission only when you choose this option. Location is used for this search and is not saved by BATO.</p>
+        </div>
         {placesError && <p className="error-text" role="alert">City list unavailable: {placesError}</p>}
-        <label className="locator-toggle">
-          <input type="checkbox" checked={includeLevel1} disabled={busy} onChange={(event) => {
-            const checked = event.target.checked;
-            setIncludeLevel1(checked);
-            if (currentSearch.current) void runSearch(currentSearch.current, checked);
-          }} />
-          <span>{TOGGLE_LABEL}</span>
-        </label>
-        <p className="hint">Level 1 laboratories may not provide routine clinical chemistry. Contact them before visiting.</p>
+        <div className="locator-filter">
+          <label className="locator-toggle">
+            <input type="checkbox" checked={includeLevel1} disabled={busy} onChange={(event) => {
+              const checked = event.target.checked;
+              setIncludeLevel1(checked);
+              if (currentSearch.current) void runSearch(currentSearch.current, checked);
+            }} />
+            <span>{TOGGLE_LABEL}</span>
+          </label>
+          <p className="hint">Level 1 laboratories may not provide routine clinical chemistry. Contact them before visiting.</p>
+        </div>
       </section>
 
       <section className="locator-results" aria-live="polite" aria-busy={busy}>
         {busy && <p>Finding nearby laboratories…</p>}
         {error && <p className="error-text" role="alert">{error}</p>}
         {results && <>
-          <h2>Laboratories near {results.locationLabel}</h2>
+          <div className="locator-results-heading">
+            <div>
+              <span className="locator-eyebrow">Search results</span>
+              <h2>Laboratories near {results.locationLabel}</h2>
+            </div>
+            <span className="locator-count">{results.facilities.length} {results.facilities.length === 1 ? "laboratory" : "laboratories"}</span>
+          </div>
           {currentSearch.current && "latitude" in currentSearch.current && (
             <p className="hint">If your browser placed you in the wrong city, choose your city or municipality above.</p>
           )}
           {notice && <p className="locator-notice">{notice}</p>}
           {results.facilities.length > 0 && <>
-            <p className="hint">Map pins show representative barangay locations, not exact laboratory premises. Check the address before travelling.</p>
-            <LocatorMap facilities={results.facilities} />
+            <div className="locator-map-panel">
+              <div className="locator-map-heading">
+                <h3>Area overview</h3>
+                <p className="hint">Map pins show representative barangay locations, not exact laboratory premises. Check the address before travelling.</p>
+              </div>
+              <LocatorMap facilities={results.facilities} />
+            </div>
             <ol className="facility-list">
               {results.facilities.map((facility) => <li className="card facility-item" key={facility.code}>
                 <div className="facility-heading">
-                  <h3>{facility.name}</h3>
-                  <span>{Number.isFinite(facility.distanceKm) ? `${facility.distanceKm.toFixed(1)} km away` : "Distance unavailable"}</span>
+                  <div>
+                    <span className="facility-level">Level {facility.level} clinical laboratory</span>
+                    <h3>{facility.name}</h3>
+                  </div>
+                  <span className="facility-distance">{Number.isFinite(facility.distanceKm) ? `${facility.distanceKm.toFixed(1)} km away` : "Distance unavailable"}</span>
                 </div>
-                <p>Level {facility.level} clinical laboratory · {[facility.address, facility.barangay, facility.city, facility.province].filter(Boolean).join(", ")}</p>
+                <p className="facility-address">{[facility.address, facility.barangay, facility.city, facility.province].filter(Boolean).join(", ")}</p>
                 {facility.level === 1 && <p className="locator-notice">Routine clinical chemistry is not a required service at Level 1. Contact this laboratory to confirm serum creatinine testing before visiting.</p>}
                 {facility.phone || facility.email ? <p>Contact: {facility.phone && <span>{facility.phone}</span>}{facility.phone && facility.email && " · "}{facility.email && <a href={`mailto:${facility.email}`}>{facility.email}</a>}</p> : <p>No phone number or email is listed; confirm availability before visiting.</p>}
                 <p className="hint">{facility.licenseValidUntil ? `Registry licence validity date: ${facility.licenseValidUntil}.` : "Licence validity date not published in this snapshot."}</p>
-                <a href={directionsUrl(facility)} target="_blank" rel="noopener noreferrer">Check location and directions</a>
+                <a className="facility-directions" href={directionsUrl(facility)} target="_blank" rel="noopener noreferrer">Check location and directions <span aria-hidden="true">↗</span></a>
               </li>)}
             </ol>
           </>}
