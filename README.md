@@ -130,6 +130,7 @@ chase hit rate re-introduces exactly the failure it was built to avoid.
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Edge Function, ingest script | Server-side DB access |
 | `GEMINI_MODEL` / `CLARIFY_GEMINI_MODEL` / `GATE_MODEL` | generation, gate | Per-role model overrides — **must stay three distinct models** |
 | `GROQ_GATE_MODEL` | gate | Groq classifier model (default `openai/gpt-oss-20b`) |
+| `GENERAL_CHAT_VARIATION_GROQ_API_KEY` | general chat | Optional key for cached-answer rewording and equivalence checks; falls back to `GROQ_API_KEY` |
 | `ANSWER_CACHE_ENABLED` | answer cache | Set `false` to bypass the cache entirely (default on) |
 | `CACHE_HIT_THRESHOLD` / `CLARIFY_CACHE_HIT_THRESHOLD` | answer cache | Tier-2 similarity floor (0.97 / 0.98). Set above the measured overlap — do not lower without re-measuring |
 | `VECTOR_SIMILARITY_FLOOR` | retrieval | Override recall floor (default 0.45) |

@@ -8,9 +8,8 @@
 //   (1) input gate classifies in_scope + injection_detected, and — when the
 //       request carries history — resolves the message into a question that
 //       stands alone;
-//   (2) embed the query ONCE — reused by (2a) and (3);
-//   (2a) semantic answer-cache probe; a hit returns immediately, spending no
-//        generation quota (see _shared/answer-cache.ts);
+//   (2) exact answer-cache probe, then embeddings for the semantic probe and
+//       retrieval; a single cached reply may get one checked rewording;
 //   (3) pgvector top-K on the query embedding;
 //   (4) rerank to top-N above threshold;
 //   (4b) if none pass, rephrase the question once and retry retrieval — the
@@ -71,8 +70,15 @@ import {
   lookupCachedAnswer,
   lookupExactAnswer,
   recordCacheHit,
+  selectCachedVariant,
   storeAnswer,
+  storeAnswerVariant,
 } from "../_shared/answer-cache.ts";
+import {
+  answersEquivalent,
+  REWORD_SYSTEM_PROMPT,
+  rewordAnswer,
+} from "../_shared/answer-equivalence.ts";
 import { checkDraftAnswer } from "../_shared/output-guard.ts";
 import {
   allowedCitationIds,
@@ -221,18 +227,56 @@ async function handleRequest(req: Request): Promise<Response> {
     // have blocked can reach a cached reply. The stored text already passed
     // every guard below, and those guards are deterministic, so re-running
     // them on identical input cannot change the outcome.
-    const serveCached = (cached: CachedAnswer): Response => {
+    const serveCached = (
+      cached: CachedAnswer,
+      hitCount: number | null = null,
+    ): Response => {
       console.info(
         `general-chat: answer-cache ${cached.tier} hit (similarity ${
           cached.similarity.toFixed(3)
-        }) — no generation call`,
+        })`,
       );
+      const variant = selectCachedVariant(cached, hitCount);
       const body: ChatResponse = {
-        reply: cached.reply,
-        sources: cached.sources as SourceCitation[],
+        reply: variant.reply,
+        sources: variant.sources as SourceCitation[],
         deflected: false,
       };
       return jsonResponse(body);
+    };
+
+    // Reword an existing guarded answer without spending the limited Gemini
+    // generation quota. Keep its source chips only when the wording passes
+    // the same safety filters and an independent meaning check.
+    const varyCached = async (cached: CachedAnswer): Promise<Response> => {
+      const hitCount = await recordCacheHit(supabase, cached.id, true);
+      if (cached.variants) return serveCached(cached, hitCount);
+      if (hitCount === null) return serveCached(cached);
+      const alternate = await rewordAnswer(cached.reply);
+      if (!alternate || splitSourceFooter(alternate).hasFooter) {
+        return serveCached(cached);
+      }
+      const filtered = filterAssistantReply(alternate);
+      const guard = checkDraftAnswer(
+        alternate,
+        REWORD_SYSTEM_PROMPT,
+        [],
+        { requireCitation: false },
+      );
+      if (
+        !filtered.ok || !guard.safe ||
+        !(await answersEquivalent(cached.reply, alternate))
+      ) return serveCached(cached);
+      const stored = await storeAnswerVariant(supabase, cached, {
+        reply: alternate,
+        sources: cached.sources,
+      }, hitCount);
+      if (!stored) return serveCached(cached);
+      return jsonResponse({
+        reply: alternate,
+        sources: cached.sources as SourceCitation[],
+        deflected: false,
+      } satisfies ChatResponse);
     };
 
     // (2a) TIER 1 — exact match on the normalised question. Deliberately
@@ -240,8 +284,7 @@ async function handleRequest(req: Request): Promise<Response> {
     // repeat pattern that actually dominates a scripted evaluation session.
     const exact = await lookupExactAnswer(supabase, question, SCOPE);
     if (exact) {
-      await recordCacheHit(supabase, exact.id);
-      return serveCached(exact);
+      return await varyCached(exact);
     }
 
     // (2b) Two embeddings, in parallel, in DIFFERENT geometries: retrieval
@@ -266,8 +309,7 @@ async function handleRequest(req: Request): Promise<Response> {
     // measurement note in answer-cache.ts.
     const cached = await lookupCachedAnswer(supabase, cacheEmbedding, SCOPE);
     if (cached) {
-      await recordCacheHit(supabase, cached.id);
-      return serveCached(cached);
+      return await varyCached(cached);
     }
 
     // (3) pgvector similarity for a wide candidate pool, reusing the vector
