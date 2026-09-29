@@ -23,7 +23,10 @@ import {
   lookupCachedAnswer,
   lookupExactAnswer,
   normalizeQuestion,
+  recordCacheHit,
+  selectCachedVariant,
   storeAnswer,
+  storeAnswerVariant,
 } from "../supabase/functions/_shared/answer-cache.ts";
 import {
   CLARIFY_GENERATION_MODEL_DEFAULT,
@@ -69,17 +72,25 @@ function stubClient(options: {
   rpcData?: unknown;
   rpcError?: { message: string };
   insertError?: { message: string };
+  updateError?: { message: string };
   selectData?: unknown[];
   selectError?: { message: string };
   throwOn?: string;
-}): { client: SupabaseClient; rpcCalls: RpcCall[]; inserts: unknown[] } {
+}): { client: SupabaseClient; rpcCalls: RpcCall[]; inserts: unknown[]; updates: unknown[] } {
   const rpcCalls: RpcCall[] = [];
   const inserts: unknown[] = [];
+  const updates: unknown[] = [];
   lastSelect = null;
   const client = {
     rpc(name: string, args: Record<string, unknown>) {
       rpcCalls.push({ name, args });
       if (options.throwOn === name) throw new Error("connection reset");
+      if (name === "touch_answer_cache" && !options.rpcError) {
+        const row = options.selectData?.find((item) =>
+          (item as Record<string, unknown>).id === args.cache_id
+        ) as Record<string, unknown> | undefined;
+        if (row && typeof row.hit_count === "number") row.hit_count++;
+      }
       return Promise.resolve({
         data: options.rpcData ?? null,
         error: options.rpcError ?? null,
@@ -92,6 +103,21 @@ function stubClient(options: {
           if (options.throwOn === "insert") throw new Error("connection reset");
           return Promise.resolve({ error: options.insertError ?? null });
         },
+        update(row: Record<string, unknown>) {
+          if (options.throwOn === "update") throw new Error("connection reset");
+          return {
+            eq(column: string, value: unknown) {
+              updates.push({ table, column, value, row });
+              if (!options.updateError && column === "id") {
+                const existing = options.selectData?.find((item) =>
+                  (item as Record<string, unknown>).id === value
+                ) as Record<string, unknown> | undefined;
+                if (existing) Object.assign(existing, row);
+              }
+              return Promise.resolve({ error: options.updateError ?? null });
+            },
+          };
+        },
         select(_columns: string) {
           if (options.throwOn === "select") throw new Error("connection reset");
           lastSelect = { table, filters: {} };
@@ -99,6 +125,9 @@ function stubClient(options: {
           const builder = {
             eq(column: string, value: unknown) {
               lastSelect!.filters[column] = value;
+              return builder;
+            },
+            order(_column: string, _options: unknown) {
               return builder;
             },
             limit(_n: number) {
@@ -113,7 +142,7 @@ function stubClient(options: {
       };
     },
   } as unknown as SupabaseClient;
-  return { client, rpcCalls, inserts };
+  return { client, rpcCalls, inserts, updates };
 }
 
 const VECTOR = Array.from({ length: 768 }, (_, i) => (i % 7) / 10);
@@ -264,6 +293,48 @@ Deno.test("cache: an exact hit reports tier 'exact' and similarity 1", async () 
     assertEquals(hit?.tier, "exact");
     assertEquals(hit?.similarity, 1);
     assertEquals(hit?.reply, "CKD is a long-term kidney condition.");
+    assertEquals(hit?.variants, undefined);
+  });
+});
+
+Deno.test("cache: a legacy JSON-like reply stays readable", async () => {
+  await withEnv({}, async () => {
+    const reply = '{"kidney tests":["blood","urine"]}';
+    const { client } = stubClient({ selectData: [{
+      id: "abc", question: "q", reply, sources: [{ source: "NIDDK" }],
+    }] });
+    const hit = await lookupExactAnswer(client, "q", "general_education");
+    assertEquals(hit?.reply, reply);
+    assertEquals(hit?.variants, undefined);
+  });
+});
+
+Deno.test("cache: exact lookup decodes two guarded replies and their own sources", async () => {
+  await withEnv({}, async () => {
+    const first = { reply: "CKD is a long-term kidney condition.", sources: [{ source: "NIDDK" }] };
+    const second = { reply: "CKD means long-term kidney damage.", sources: [{ source: "CDC" }] };
+    const { client } = stubClient({ selectData: [{
+      id: "abc", question: "What is CKD?", sources: first.sources,
+      reply: "BATO_VARIANTS_V1:" + JSON.stringify({ version: 1, variants: [first, second] }),
+    }] });
+    const hit = await lookupExactAnswer(client, "what is ckd", "general_education");
+    assertEquals(hit?.reply, first.reply);
+    assertEquals(hit?.sources, first.sources);
+    assertEquals(hit?.variants, [first, second]);
+  });
+});
+
+Deno.test("cache: malformed variant payload is an exact miss", async () => {
+  await withEnv({}, async () => {
+    for (const reply of [
+      'BATO_VARIANTS_V1:{"version":1,"variants":',
+      "BATO_VARIANTS_V2:" + JSON.stringify({ version: 2, variants: [{ reply: "r", sources: [] }] }),
+      "BATO_VARIANTS_V1:" + JSON.stringify({ version: 1, variants: [{ reply: "r", sources: [] }, { reply: " ", sources: [] }] }),
+      "BATO_VARIANTS_V1:" + JSON.stringify({ version: 1, variants: [{ reply: "r", sources: [] }, { reply: "r2", sources: "NIDDK" }] }),
+    ]) {
+      const { client } = stubClient({ selectData: [{ id: "abc", question: "q", reply, sources: [] }] });
+      assertEquals(await lookupExactAnswer(client, "q", "general_education"), null);
+    }
   });
 });
 
@@ -361,6 +432,32 @@ Deno.test("cache: a hit returns the stored reply, sources and similarity", async
   });
 });
 
+Deno.test("cache: semantic lookup decodes the same two-variant payload", async () => {
+  await withEnv({}, async () => {
+    const variants = [
+      { reply: "Kidney tests can include blood tests.", sources: [{ source: "NIDDK" }] },
+      { reply: "Blood tests are one way to check kidney health.", sources: [{ source: "CDC" }] },
+    ];
+    const { client } = stubClient({ rpcData: [{
+      id: "abc", question: "kidney tests", reply: "BATO_VARIANTS_V1:" + JSON.stringify({ version: 1, variants }),
+      sources: variants[0].sources, similarity: 0.981,
+    }] });
+    const hit = await lookupCachedAnswer(client, VECTOR, "general_education");
+    assertEquals(hit?.variants, variants);
+    assertEquals(hit?.reply, variants[0].reply);
+    assertEquals(hit?.sources, variants[0].sources);
+  });
+});
+
+Deno.test("cache: malformed variant payload is a semantic miss", async () => {
+  await withEnv({}, async () => {
+    const { client } = stubClient({ rpcData: [{
+      id: "abc", question: "q", reply: 'BATO_VARIANTS_V1:{"version":1,"variants":', sources: [], similarity: 0.99,
+    }] });
+    assertEquals(await lookupCachedAnswer(client, VECTOR, "general_education"), null);
+  });
+});
+
 Deno.test("cache: an RPC error is a miss, not a thrown request", async () => {
   await withEnv({}, async () => {
     // This is the pre-migration state: match_answer_cache does not exist yet.
@@ -432,6 +529,60 @@ Deno.test("cache: a failed store never throws into the request path", async () =
       sources: [],
       model: "m",
     });
+  });
+});
+
+Deno.test("cache: upgrading a legacy answer stores two independently sourced variants", async () => {
+  await withEnv({}, async () => {
+    const row = { id: "abc", question: "q", reply: "First answer.", sources: [{ source: "NIDDK" }] };
+    const { client, updates } = stubClient({ selectData: [row] });
+    const cached = (await lookupExactAnswer(client, "q", "general_education"))!;
+    assertEquals(await storeAnswerVariant(client, cached, {
+      reply: "Second answer.", sources: [{ source: "CDC" }],
+    }), true);
+    assertEquals(updates.length, 1);
+    const refreshed = await lookupExactAnswer(client, "q", "general_education");
+    assertEquals(refreshed?.variants, [
+      { reply: "First answer.", sources: [{ source: "NIDDK" }] },
+      { reply: "Second answer.", sources: [{ source: "CDC" }] },
+    ]);
+  });
+});
+
+Deno.test("cache: paired replies alternate after the first rewording", async () => {
+  await withEnv({}, async () => {
+    for (const initialHitCount of [5, 6]) {
+      const row = {
+        id: "abc", question: "q", reply: "First answer.",
+        sources: [{ source: "NIDDK" }], hit_count: initialHitCount,
+      };
+      const { client } = stubClient({ selectData: [row] });
+      const cached = (await lookupExactAnswer(client, "q", "general_education"))!;
+      const firstHit = await recordCacheHit(client, cached.id, true);
+      await storeAnswerVariant(client, cached, {
+        reply: "Second answer.", sources: [{ source: "CDC" }],
+      }, firstHit);
+      const paired = (await lookupExactAnswer(client, "q", "general_education"))!;
+      assertEquals(selectCachedVariant(paired, firstHit! + 1).reply, cached.reply);
+      assertEquals(selectCachedVariant(paired, firstHit! + 2).reply, "Second answer.");
+      assertEquals(selectCachedVariant(paired, firstHit! + 3).reply, cached.reply);
+    }
+  });
+});
+
+Deno.test("cache: failed variant update leaves the legacy answer usable", async () => {
+  await withEnv({}, async () => {
+    const row = { id: "abc", question: "q", reply: "First answer.", sources: [] };
+    const { client } = stubClient({ selectData: [row], updateError: { message: "network error" } });
+    const cached = (await lookupExactAnswer(client, "q", "general_education"))!;
+    assertEquals(await storeAnswerVariant(client, cached, {
+      reply: "Second answer.", sources: [],
+    }), false);
+    assertEquals((await lookupExactAnswer(client, "q", "general_education"))?.reply, "First answer.");
+    const thrown = stubClient({ selectData: [row], throwOn: "update" });
+    assertEquals(await storeAnswerVariant(thrown.client, cached, {
+      reply: "Second answer.", sources: [],
+    }), false);
   });
 });
 

@@ -10,6 +10,7 @@ import {
 import { hasConsented } from "../../lib/consent";
 import ConsentGate from "./ConsentGate";
 import ResultsScreen from "./ResultsScreen";
+import "./assessment.css";
 
 interface Turn {
   role: "user" | "bot";
@@ -228,11 +229,12 @@ export default function AssessmentChat() {
   if (fatalError) {
     return (
       <div className="assessment-page">
-        <div className="card results">
-          <h2>Assessment unavailable</h2>
+        <div className="assessment-panel" role="alert">
+          <span className="assessment-eyebrow">Risk assessment</span>
+          <h1>Assessment unavailable</h1>
           <p>{fatalError}</p>
-          <div className="button-row">
-            <button className="button-link accent" onClick={() => void begin()}>
+          <div className="assessment-actions">
+            <button className="assessment-button assessment-button-primary" onClick={() => void begin()}>
               Try again
             </button>
           </div>
@@ -242,45 +244,54 @@ export default function AssessmentChat() {
   }
 
   return (
-    <div className="chat-page">
-      <div className="page-title">
-        <h2>Risk Assessment</h2>
+    <div className="chat-page assessment-chat">
+      <header className="assessment-chat-header">
+        <div>
+          <span className="assessment-eyebrow">Kidney health screening</span>
+          <h1>Risk assessment</h1>
+          <p>Take your time. Answer one question at a time.</p>
+        </div>
         {step && (
-          <span className="progress-label">
+          <span className="assessment-step-label">
             Question {step.index + 1} of {step.total}
           </span>
         )}
-      </div>
+      </header>
       {step && (
         <div
-          className="progress-track"
+          className="assessment-progress"
           role="progressbar"
+          aria-label="Screening progress"
           aria-valuemin={0}
           aria-valuemax={step.total}
           aria-valuenow={step.index + 1}
         >
           <div
-            className="progress-fill"
+            className="assessment-progress-fill"
             style={{ width: `${((step.index + 1) / step.total) * 100}%` }}
           />
         </div>
       )}
 
-      <div className="chat" ref={scrollRef}>
+      <div className="chat assessment-transcript" ref={scrollRef} role="log" aria-label="Assessment conversation" aria-live="polite" aria-relevant="additions">
         {turns.map((turn, i) => (
           <div
             key={i}
             className={
-              "bubble " +
-              (turn.role === "user" ? "user" : "bot") +
-              (turn.error ? " error" : "")
+              "assessment-turn " +
+              (turn.role === "user" ? "assessment-turn-user" : "assessment-turn-bot") +
+              (turn.error ? " assessment-turn-error" : "") +
+              (turn.role === "bot" && i === turns.length - 1 && turn.text === step?.prompt
+                ? " assessment-turn-current"
+                : "")
             }
           >
-            {turn.text}
+            <span className="assessment-turn-label">{turn.role === "user" ? "You" : "BATO"}</span>
+            <span>{turn.text}</span>
           </div>
         ))}
         {busy && (
-          <div className="bubble bot typing" aria-label="Thinking">
+          <div className="assessment-turn assessment-turn-bot typing" role="status" aria-label="BATO is responding">
             <span />
             <span />
             <span />
@@ -289,18 +300,20 @@ export default function AssessmentChat() {
       </div>
 
       {step && !busy && (
-        <div className="quick-replies">
+        <div className="assessment-responses" role="group" aria-label="Answer options">
           {(step.options ?? []).map((opt) => (
             <button
               key={opt}
-              className="starter"
+              type="button"
+              className="assessment-choice"
               onClick={() => void sendAnswer(opt)}
             >
               {opt}
             </button>
           ))}
           <button
-            className="starter explain"
+            type="button"
+            className="assessment-explain"
             onClick={() =>
               void sendClarification(
                 EXPLAIN_CHIP,
@@ -314,33 +327,40 @@ export default function AssessmentChat() {
       )}
 
       <form
-        className="composer"
+        className="composer assessment-composer"
         onSubmit={(e) => {
           e.preventDefault();
           send(input);
         }}
       >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send(input);
+        <label htmlFor="assessment-answer">
+          {step?.inputType === "number" ? "Your answer" : "Type an answer or ask a question"}
+        </label>
+        <div className="assessment-composer-row">
+          <textarea
+            id="assessment-answer"
+            value={input}
+            inputMode={step?.inputType === "number" ? "numeric" : "text"}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send(input);
+              }
+            }}
+            placeholder={
+              step?.inputType === "number"
+                ? "Type your answer (a number)…"
+                : "Type your answer, or ask about the question…"
             }
-          }}
-          placeholder={
-            step?.inputType === "number"
-              ? "Type your answer (a number)…"
-              : "Type your answer, or ask about the question…"
-          }
-          rows={1}
-          maxLength={1000}
-          disabled={busy}
-        />
-        <button type="submit" disabled={busy || !input.trim()}>
-          Send
-        </button>
+            rows={1}
+            maxLength={1000}
+            disabled={busy}
+          />
+          <button type="submit" disabled={busy || !input.trim()}>
+            Send
+          </button>
+        </div>
       </form>
     </div>
   );

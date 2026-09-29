@@ -7,6 +7,7 @@ import {
   type SourceCitation,
 } from "../api";
 import { linkHost, sourceReference } from "../lib/source-links";
+import "./general-chat.css";
 
 interface BotTurn {
   role: "bot";
@@ -99,6 +100,7 @@ export default function GeneralChat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (turns.length === 0) return;
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
@@ -155,19 +157,26 @@ export default function GeneralChat() {
   const remaining = MAX_MESSAGE_LENGTH - input.length;
 
   return (
-    <div className="chat-page">
-      <div className="page-title">
-        <h2>Kidney Health Chat</h2>
-        <span className="header-badge">Answers only from approved sources</span>
-      </div>
+    <div className="chat-page general-chat">
+      <header className="page-title">
+        <div>
+          <p className="section-eyebrow">KIDNEY HEALTH GUIDE</p>
+          <h1>Ask about kidney health</h1>
+          <p className="page-subtitle">Clear answers to general questions, grounded in trusted health sources.</p>
+        </div>
+        <span className="header-badge">Source-based answers</span>
+      </header>
 
-      <div className="chat" ref={scrollRef}>
+      <div className="chat" ref={scrollRef} role="log" aria-label="Kidney health conversation" aria-live="polite">
         {turns.length === 0 && (
           <div className="empty">
+            <span className="chat-empty-mark" aria-hidden="true">?</span>
+            <h2>What would you like to know?</h2>
             <p className="empty-lead">
-              Ask me about kidney conditions, tests, medicines, prevention,
-              and kidney care in the Philippines.
+              Explore kidney conditions, tests, medicines, prevention, and
+              kidney care in the Philippines.
             </p>
+            <p className="starter-heading">Try a question</p>
             <div className="starters">
               {STARTERS.map((q) => (
                 <button
@@ -186,6 +195,7 @@ export default function GeneralChat() {
         {turns.map((turn, i) =>
           turn.role === "user" ? (
             <div key={i} className="bubble user">
+              <span className="message-label">You</span>
               {turn.text}
             </div>
           ) : (
@@ -197,6 +207,7 @@ export default function GeneralChat() {
                 (turn.error ? " error" : "")
               }
             >
+              <span className="message-label">BATO</span>
               <div className="bot-text">{turn.text}</div>
               {turn.sources.length > 0 && (
                 <div className="sources">
@@ -211,10 +222,11 @@ export default function GeneralChat() {
         )}
 
         {sending && (
-          <div className="bubble bot typing" aria-label="Thinking">
-            <span />
-            <span />
-            <span />
+          <div className="bubble bot typing" role="status">
+            <span className="sr-only">BATO is replying</span>
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
+            <span aria-hidden="true" />
           </div>
         )}
       </div>
@@ -226,12 +238,14 @@ export default function GeneralChat() {
           void send(input);
         }}
       >
+        <label className="sr-only" htmlFor="general-chat-input">Your kidney health question</label>
         <textarea
+          id="general-chat-input"
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ask about kidney health… (Enter to send)"
+          placeholder="Type your question…"
           rows={1}
           maxLength={MAX_MESSAGE_LENGTH}
           disabled={sending}
@@ -239,7 +253,7 @@ export default function GeneralChat() {
         />
         {remaining < 200 && <span className="char-count">{remaining}</span>}
         <button type="submit" disabled={sending || !input.trim()}>
-          Send
+          Send question
         </button>
       </form>
     </div>

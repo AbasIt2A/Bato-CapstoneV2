@@ -1,9 +1,10 @@
 // Rule-Based Screening Controller — Edge Function (PRD §6.2/§6.3A).
 //
 // HTTP/DB glue around the pure state machine in _shared/screening-flow.ts.
-// Fully deterministic: this function has no LLM dependency of any kind
-// (FR-4). Clarification requests never reach this function — the frontend
-// calls the separate `clarify` function and returns to the same step (FR-3).
+// Validation and scoring are deterministic; invalid reply wording may vary.
+// This function has no LLM dependency of any kind (FR-4). Clarification
+// requests go to the separate `clarify` function; the frontend then returns
+// to the same step (FR-3).
 //
 // Actions (POST JSON):
 //   { action: "start" }
@@ -113,7 +114,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
         const outcome = evaluateAnswer(key, body.value);
         if (!outcome.ok) {
-          // Invalid input: re-ask the same step. Deterministic message only;
+          // Invalid input: re-ask the same step. Prewritten message only;
           // the LLM Clarification Engine is a separate function (§6.3).
           return jsonResponse({
             valid: false,

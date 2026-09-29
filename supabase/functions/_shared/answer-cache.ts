@@ -1,9 +1,10 @@
 // Semantic answer cache for the shared grounded RAG pipeline.
 //
 // Sits between the input gate and retrieval. On a hit, a previously generated
-// and fully-guarded reply is served verbatim and the request costs ZERO
-// generation calls; on a miss the pipeline runs unchanged and the finished
-// reply is written back.
+// and fully-guarded reply is served. General chat may spend one extra
+// generation call on a single-version hit to add a guarded wording variant;
+// paired hits and clarification hits spend none. On a miss the pipeline runs
+// unchanged and the finished reply is written back.
 //
 // ===== WHY =====
 //
@@ -85,6 +86,8 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { type RetrievalScope, scopeProfile } from "./scopes.ts";
 
+const VARIANT_PREFIX = "BATO_VARIANTS_V1:";
+
 /** A cached reply, ready to serve. */
 export interface CachedAnswer {
   id: string;
@@ -92,10 +95,27 @@ export interface CachedAnswer {
   question: string;
   reply: string;
   sources: unknown[];
+  /** Present only when the stored row contains two checked wordings. */
+  variants?: { reply: string; sources: unknown[] }[];
   /** Which tier matched. Logged so hit sources stay distinguishable. */
   tier: "exact" | "semantic";
   /** Cosine similarity; exactly 1 for an exact match. */
   similarity: number;
+}
+
+/** Reuse the hit counter to rotate checked variants across sequential visits. */
+export function selectCachedVariant(
+  cached: CachedAnswer,
+  hitCount: number | null,
+): { reply: string; sources: unknown[] } {
+  const variants = cached.variants;
+  if (!variants?.length) return cached;
+  // ponytail: concurrent hits may read the same count; use an atomic RPC if needed.
+  const index = hitCount !== null && Number.isSafeInteger(hitCount) &&
+      hitCount >= 0
+    ? hitCount % variants.length
+    : Math.floor(Math.random() * variants.length);
+  return variants[index];
 }
 
 /**
@@ -144,14 +164,73 @@ function toCachedAnswer(
   // a half-built reply served to a user.
   const reply = typeof row.reply === "string" ? row.reply : "";
   if (!reply.trim()) return null;
+  let variants: CachedAnswer["variants"];
+  if (reply.startsWith("BATO_VARIANTS_")) {
+    if (!reply.startsWith(VARIANT_PREFIX)) return null;
+    try {
+      const payload = JSON.parse(reply.slice(VARIANT_PREFIX.length));
+      if (
+        payload?.version !== 1 || !Array.isArray(payload.variants) ||
+        payload.variants.length !== 2 ||
+        !payload.variants.every((variant: unknown) => {
+          if (!variant || typeof variant !== "object") return false;
+          const answer = variant as Record<string, unknown>;
+          return typeof answer.reply === "string" && !!answer.reply.trim() &&
+            Array.isArray(answer.sources);
+        })
+      ) return null;
+      variants = payload.variants;
+    } catch {
+      return null;
+    }
+  }
   return {
     id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
     question: typeof row.question === "string" ? row.question : "",
-    reply,
-    sources: Array.isArray(row.sources) ? row.sources : [],
+    reply: variants?.[0].reply ?? reply,
+    sources: variants?.[0].sources ?? (Array.isArray(row.sources) ? row.sources : []),
+    ...(variants ? { variants } : {}),
     tier,
     similarity,
   };
+}
+
+/** Adds a second fully guarded wording to an existing legacy answer row. */
+export async function storeAnswerVariant(
+  supabase: SupabaseClient,
+  cached: CachedAnswer,
+  alternate: { reply: string; sources: unknown[] },
+  hitCount: number | null = null,
+): Promise<boolean> {
+  if (
+    !answerCacheEnabled() || cached.variants || !cached.id ||
+    !alternate.reply.trim() || alternate.reply === cached.reply ||
+    !Array.isArray(alternate.sources)
+  ) return false;
+  try {
+    const variants = [
+      { reply: cached.reply, sources: cached.sources },
+      alternate,
+    ];
+    // The alternate was just served. Align parity so the next hit uses the original.
+    if (hitCount !== null && Number.isSafeInteger(hitCount) && hitCount % 2 === 0) {
+      variants.reverse();
+    }
+    const { error } = await supabase.from("answer_cache").update({
+      reply: VARIANT_PREFIX + JSON.stringify({
+        version: 1,
+        variants,
+      }),
+    }).eq("id", cached.id);
+    if (error) {
+      console.warn("answer-cache: variant store failed:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("answer-cache: variant store threw:", err);
+    return false;
+  }
 }
 
 /**
@@ -173,6 +252,7 @@ export async function lookupExactAnswer(
       .select("id, question, reply, sources")
       .eq("scope", scope)
       .eq("question_norm", normalizeQuestion(question))
+      .order("id", { ascending: true })
       .limit(1);
     if (error) {
       console.warn(
@@ -232,18 +312,31 @@ export async function lookupCachedAnswer(
 }
 
 /**
- * Records a cache hit for telemetry. Fire-and-forget: awaited only so the
- * Edge Function's runtime is not cut short mid-write, and incapable of
- * affecting the reply either way.
+ * Records a cache hit for telemetry. General chat can read the updated count
+ * to alternate cached wordings; other callers keep the previous cheap path.
  */
 export async function recordCacheHit(
   supabase: SupabaseClient,
   id: string,
-): Promise<void> {
+  readCount = false,
+): Promise<number | null> {
   try {
-    await supabase.rpc("touch_answer_cache", { cache_id: id });
+    const { error } = await supabase.rpc("touch_answer_cache", { cache_id: id });
+    if (error) {
+      console.warn("answer-cache: hit counter not recorded:", error.message);
+      return null;
+    }
+    if (!readCount) return null;
+    const { data, error: readError } = await supabase.from("answer_cache")
+      .select("hit_count").eq("id", id).limit(1);
+    if (readError) return null;
+    const count = data?.[0]?.hit_count;
+    return typeof count === "number" && Number.isSafeInteger(count) && count >= 0
+      ? count
+      : null;
   } catch (err) {
     console.warn("answer-cache: hit counter not recorded:", err);
+    return null;
   }
 }
 

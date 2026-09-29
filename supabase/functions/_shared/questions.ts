@@ -5,10 +5,10 @@
 // AstraZeneca Philippines license terms (Veeva PH-6850) before launch. It is
 // intentionally NOT the published Figure 2 questionnaire text.
 //
-// Parsing here is deterministic string handling only — no LLM. If a user's
-// input doesn't validate, the controller re-asks; if they need the term
-// explained, the frontend offers the LLM Clarification Engine as a
-// side-branch (PRD §6.3) and returns to this same step.
+// Validation here is deterministic string handling only — no LLM. Invalid
+// reply wording may vary. If input doesn't validate, the controller re-asks;
+// if they need a term explained, the frontend offers the LLM Clarification
+// Engine as a side-branch (PRD §6.3) and returns to this same step.
 
 export type ParseResult =
   | { ok: true; normalized: string; value: number | boolean }
@@ -53,9 +53,8 @@ function normalizeRaw(raw: string): string {
 /**
  * Yes/no parser for the history questions. The printed SCORED instrument
  * instructs "if a statement is not true or you are not sure, put a zero" —
- * so when someone says they can't remember, we don't just demand yes/no:
- * we offer an explanation of the term, and tell them that if they still
- * can't recall ever being told this, they should answer "No".
+ * so when someone says they can't remember, we tell them to answer "No"
+ * if they can't recall ever being told this, and offer to explain the term.
  */
 function makeYesNoParser(topic: string) {
   return function parseYesNo(raw: string): ParseResult {
@@ -63,12 +62,21 @@ function makeYesNoParser(topic: string) {
     if (YES.has(v)) return { ok: true, normalized: "yes", value: true };
     if (NO.has(v)) return { ok: true, normalized: "no", value: false };
     if (isUnsure(raw)) {
+      const recall = /\b(remember|recall|forgot(?:ten)?|matandaan)\b/i.test(v);
+      const guidance = (recall
+        ? [
+          'If you can\'t recall ever being told this by a doctor or health worker, answer "No".',
+          'If you don\'t remember a doctor or health worker ever telling you this, please answer "No".',
+        ]
+        : [
+          'If you don\'t know whether a doctor or health worker ever told you this, answer "No".',
+          'If you are unsure whether you\'ve ever been told this by a doctor or health worker, please answer "No".',
+        ])[Math.random() < 0.5 ? 0 : 1];
       return {
         ok: false,
         message:
-          `That's okay — if you're not sure what ${topic} means, just ask and I can explain it first. ` +
-          'But if you simply can\'t remember ever being told this by a doctor or health worker, please answer "No" — ' +
-          "this screening counts an unsure answer the same as a no.",
+          `${guidance} Unsure answers count as "No" in this screening. ` +
+          `If you're not sure what ${topic} means, ask me to explain it.`,
       };
     }
     return {

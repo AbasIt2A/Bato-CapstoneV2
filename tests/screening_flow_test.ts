@@ -2,7 +2,12 @@
 // (ported from the capstone build).
 // Run with: deno test --allow-read --allow-env tests/screening_flow_test.ts
 
-import { assertEquals, assertThrows } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertMatch,
+  assertNotEquals,
+  assertThrows,
+} from "jsr:@std/assert@1";
 import {
   evaluateAnswer,
   finalizeAssessment,
@@ -119,6 +124,38 @@ Deno.test("evaluateAnswer: can't-recall answers get explain-or-answer-no guidanc
       assertEquals(out.message.includes('answer "No"'), true);
       assertEquals(out.message.includes("anemia"), true);
     }
+  }
+});
+
+Deno.test("evaluateAnswer: unsure replies lead with No guidance and can vary", () => {
+  const random = Math.random;
+  try {
+    for (
+      const [input, start] of [
+        ["I can't recall", /^If you (?:can't recall|don't remember)/],
+        ["I dont remember", /^If you (?:can't recall|don't remember)/],
+        ["I don't know", /^If you (?:don't know|are unsure)/],
+      ] as const
+    ) {
+      Math.random = () => 0;
+      const first = evaluateAnswer("cvd_history", input);
+      Math.random = () => 0.99;
+      const second = evaluateAnswer("cvd_history", input);
+      assertEquals(first.ok, false);
+      assertEquals(second.ok, false);
+      if (first.ok || second.ok) continue;
+
+      assertNotEquals(first.message, second.message);
+      for (const message of [first.message, second.message]) {
+        assertMatch(message, start);
+        assertMatch(message, /^If [^.]+answer "No"\./);
+        assertEquals(message.includes("a heart attack or stroke"), true);
+        assertEquals(message.includes("explain"), true);
+        assertEquals(message.toLowerCase().includes("unsure"), true);
+      }
+    }
+  } finally {
+    Math.random = random;
   }
 });
 
