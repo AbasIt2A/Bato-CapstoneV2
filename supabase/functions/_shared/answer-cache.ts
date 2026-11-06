@@ -153,6 +153,25 @@ export function answerCacheEnabled(): boolean {
   }
 }
 
+/**
+ * Whether storeAnswer() may add NEW entries. Each new entry keeps the text of
+ * the question that produced it, so with study participants that would be
+ * participant text kept indefinitely — which the ICF does not allow.
+ *
+ * Defaults to OFF, so a deploy is study-safe without any configuration. The
+ * cache is filled beforehand by the research team: set
+ * ANSWER_CACHE_STORE_NEW=true, ask the expected questions, then unset it
+ * before participants arrive. Reads, hit counts and reworded variants of
+ * existing entries are unaffected — none of them store participant text.
+ */
+export function answerCacheStoresNew(): boolean {
+  try {
+    return Deno.env.get("ANSWER_CACHE_STORE_NEW") === "true";
+  } catch {
+    return false; // no env permission (offline tests)
+  }
+}
+
 /** Shapes a raw row into a CachedAnswer, or null if it is unusable. */
 function toCachedAnswer(
   row: Record<string, unknown> | undefined,
@@ -361,7 +380,7 @@ export async function storeAnswer(
     model: string;
   },
 ): Promise<void> {
-  if (!answerCacheEnabled()) return;
+  if (!answerCacheEnabled() || !answerCacheStoresNew()) return;
 
   try {
     const { error } = await supabase.from("answer_cache").insert({

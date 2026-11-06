@@ -4,10 +4,15 @@ citations: [NIDDK, CDC, KDIGO]
 title: Symptoms, Causes, and Complications of CKD
 approved: true
 last_updated: 2026-07-08
-# Dual-scoped: "What causes CKD" covers diabetes and high blood pressure,
-# two of the nine SCORED variables, so a user asking what they mean
-# mid-assessment needs this content too.
-scopes: [general_education, screening_clarification]
+# General education ONLY since 2026-11-06 (was dual-scoped). The "Symptoms
+# of CKD" section lists tiredness, swelling and foamy urine, which overlap
+# the anemia, heart failure and proteinuria questions. Served mid-assessment,
+# it lets an unsure user self-diagnose a condition the SCORED questionnaire
+# asks them to answer from a known diagnosis ("if you are not sure, put a
+# zero" — Bang et al., 2007, Figure 2). The causes content it also carried is
+# covered for clarification by niddk/screening-and-risk-factors.md. See
+# REVIEW-FLAGS.md §17.
+scopes: [general_education]
 topic_tags: [ckd, symptoms, causes, complications]
 ---
 

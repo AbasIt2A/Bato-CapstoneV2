@@ -19,10 +19,23 @@ const DIAGNOSTIC_PATTERNS: RegExp[] = [
   //      ordinary grounded content (verified: "When you have CKD…" and
   //      "Once you have kidney disease…" both tripped it).
   //
+  //   3. Verbs of finding out — "how you would usually know you have
+  //      diabetes", "you may find out you have it", "a doctor said you have
+  //      anemia". The clarification prompt asks for exactly this ("how a
+  //      person would usually know they have it"), and on 2026-11-06 a valid
+  //      "What is diabetes?" reply was blocked on "know you have diabetes".
+  //      First-person versions ("I know you have…") are caught by a separate
+  //      pattern below.
+  //
   // Deliberately NOT exempted: "because"/"since" ("because you have CKD…"),
-  // which assert the diagnosis as established fact rather than supposing it.
-  /(?<!\b(?:told|tells?|telling|asked|asks|asking|if|whether|when|whenever|once|unless|while)\s+(?:you\s+)?(?:that\s+)?)\byou\s+(almost\s+certainly\s+|probably\s+|likely\s+|definitely\s+|clearly\s+)?(have|don'?t\s+have|do\s+not\s+have|are\s+suffering\s+from)\s+(?:a\s+)?(chronic\s+kidney\s+disease|ckd|kidney\s+disease|kidney\s+failure|kidney\s+stones?|renal\s+(disease|failure)|diabetes|hypertension|anemia|heart\s+failure)\b/i,
+  // which assert the diagnosis as established fact rather than supposing it;
+  // nor "shows"/"means", which follow "your test" or "your result" as easily
+  // as "a test" and would then state a diagnosis.
+  /(?<!\b(?:told|tells?|telling|asked|asks|asking|if|whether|when|whenever|once|unless|while|know|knows|known|knew|learn|learns|learned|learnt|find\s+out|finds\s+out|found\s+out|say|says|said)\s+(?:you\s+)?(?:that\s+)?)\byou\s+(almost\s+certainly\s+|probably\s+|likely\s+|definitely\s+|clearly\s+)?(have|don'?t\s+have|do\s+not\s+have|are\s+suffering\s+from)\s+(?:a\s+)?(chronic\s+kidney\s+disease|ckd|kidney\s+disease|kidney\s+failure|kidney\s+stones?|renal\s+(disease|failure)|diabetes|hypertension|anemia|heart\s+failure)\b/i,
   /\b(i|we)\s+(can\s+)?diagnos\w+\s+you\b/i,
+  // The assistant itself claiming to know — the one reading of the "know"
+  // exemption above that is a diagnosis.
+  /\b(i|we)\s+(can\s+)?(know|knew|think|believe|can\s+tell|see)\s+(that\s+)?you\s+(probably\s+|likely\s+)?(have|don'?t\s+have|do\s+not\s+have)\b/i,
   /\byour?\s+diagnosis\s+is\b/i,
   /\byou\s+(have|got)\s+(stage\s+\d)\b/i,
   /\b(\d{1,3})\s*%\s*(chance|probability|likelihood)\s+(that\s+)?you\b/i,

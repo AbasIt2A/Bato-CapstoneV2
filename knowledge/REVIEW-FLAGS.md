@@ -1214,3 +1214,118 @@ causes of glomerulonephritis; the NIDDK passage was tightened and a dedicated
 NKF glomerulonephritis passage was added as an accuracy correction. All six new
 files are marked `approved: true` and were ingested. This approval is recorded
 separately from §15's earlier approval of the original two stone sections.
+
+## 17. Clarification may explain, not supply grounds to self-diagnose — 2026-11-06
+
+**The principle.** The SCORED questionnaire (Bang et al., 2007, Figure 2)
+asks whether a person HAS each condition — "I had/have anemia" — and
+instructs: "If a statement is not true or you are not sure, put a zero." The
+valid answer is the person's recall of a diagnosis they already know about.
+Mid-assessment content is therefore judged by which step of answering it
+acts on:
+
+- **Understanding the question — allowed.** A definition lets someone told
+  they were *kulang sa dugo* recognise that this is anemia. It recovers
+  information that exists, and supports the paper's own premise that these
+  conditions are "easily identified by the general public".
+- **Judging from new evidence — not allowed.** Symptoms, thresholds to
+  compare one's own reading against, or "how to tell if you have it" let an
+  unsure user infer a status they do not know, turning "not sure → 0" into a
+  self-diagnosed "yes → 1" and pushing scores toward Screen Positive (PPV
+  18% in the source paper).
+
+**Changes made.**
+
+1. `niddk/symptoms-causes-complications.md` → `general_education` only. Its
+   "Symptoms of CKD" section (tiredness, swelling, foamy urine) overlaps the
+   anemia, heart failure and proteinuria questions.
+2. `psh/high-blood-pressure-in-the-philippines.md` → `general_education`
+   only. This **reverses §12.5's rationale** for dual-scoping it ("a user
+   reading 130/80 would answer differently from one reading 140/90"): that
+   difference is exactly a user classifying themselves from a reading. The
+   BATO question wording was deliberately NOT changed — the paper's own item is
+   the unanchored "I have high blood pressure", and a wording change would
+   reopen the AstraZeneca licence review (PRD §7.4). §12.5's currency check
+   on the 140/90 figure still applies, now for the general chat only.
+3. `clarify-redirect.ts`: symptom, reading and "do I have it?" questions get a
+   fixed, server-written reply per condition (no retrieval, no generation),
+   stating what the question asks, the paper's not-sure rule, and pointing to
+   the Kidney chat. Proteinuria's reply says answer "not sure", matching its
+   first-class option.
+4. `CLARIFICATION_SYSTEM_PROMPT`: second-layer rule forbidding symptoms,
+   thresholds and self-assessment criteria for phrasings the patterns miss.
+
+Re-ingested 2026-11-06 (171 chunks; answer cache cleared). Clarification
+margins re-measured — see `scopes.ts`: headroom above the strongest control
+rose from 0.030 to 0.052.
+
+**For the manuscript.** BATO administers the Figure 2 questionnaire with
+optional, definition-only clarification used by some participants and not
+others. That administration was not separately validated by Bang et al. and
+should be reported as an adaptation. Prior work on conversational
+interviewing (Schober & Conrad, 1997) supports clarifying question concepts
+to improve response accuracy — verify the citation before use.
+
+---
+
+## 18. Typed "why does this matter?" questions deflected — fixed 2026-11-06
+
+**Symptom.** On the sex question, the "Explain this question" chip was
+answered, but the typed "why does sex matter" got the clarification
+deflection. Logs: the gate admitted it; **no chunk cleared the rerank
+threshold**.
+
+**Cause.** The chip quotes the whole screening prompt, so the reranker can
+see the question is about kidney health. A typed "Why does sex matter?" never
+says *matter for what*: Cohere scored the female-sex passage **0.08** against
+the clarification threshold of **0.45**. The gate's rewrite did not help — it
+only rewrites messages that do not stand on their own, and this one looked
+like it did. The same gap failed "why does high blood pressure matter" (0.41)
+and "why does heart failure matter" (0.24).
+
+**Fix (three parts).**
+
+1. *Gate prompt* (`CLARIFY_GATE_SYSTEM_PROMPT`, gate.ts): an in-scope message
+   is rewritten to name its topic and kidney health.
+2. *Deterministic framing* (clarify/index.ts): the model omitted that about
+   one time in three, so when a rewrite exists and names no kidney word, the
+   code appends "(in a kidney health screening)". Only a rewrite is framed —
+   a rewrite exists only when a gate provider ran and judged the message in
+   scope, so a fail-open message never gains kidney wording.
+3. *Anchor*: the reranker and generator also see the screening prompt the
+   question was asked on (server-owned text, exact key match).
+
+A variant that put the words "kidney health" in the anchor itself was
+rejected: it lifted off-topic controls (reranker alone, gate skipped) to
+**0.444**, within 0.006 of the threshold.
+
+**Corpus change — VERIFY.** `peer-reviewed/scored/scored-instrument.md`,
+"Female sex and kidney risk", was two lines that never said what the question
+asks or why; even with the fix it scored 0.42–0.50. It now mirrors the age
+section:
+
+> This screening question asks the sex you were assigned at birth. Sex is
+> asked because, in the SCORED study population, women had a slightly higher
+> chance of reduced kidney function than men (SCORED; Bang et al., 2007).
+> Being a woman does not mean a person has kidney disease — it only adds
+> slightly to the chance that getting checked is worthwhile.
+
+The only factual claim is the one already in the section, plus "than men",
+which is the comparison the paper's female-sex variable makes (reference
+group: male; Table 2). The last sentence is framing, not a finding. Please
+confirm. Ingested 2026-11-06 (171 chunks); the answer cache was cleared.
+
+**Measured** (live gate → retrieval → Cohere rerank-v3.5, no generation):
+
+| Set | Before | After |
+|---|---|---|
+| Typed, 9 variables × "why does X matter" / "why is this asked" / "why does this matter" / "what is X" | sex 0/3 answered; HBP, CHF failing | **all answered**, lowest 0.663 |
+| "Explain this question" chip, all 9 | answered | **all answered**, 0.646–0.881 |
+| Off-topic controls, reranker alone (adobo, weather, phone, NBA, headache medicine, poem) | — | **all deflected**, highest 0.311 |
+
+**Operational note.** The Cohere key is a **trial key limited to 10 calls a
+minute**. Each clarification or general-chat question uses one. Above that
+rate the reranker fails and the pipeline degrades to cosine ordering
+(`fallbackSimilarity`), where the variable hint alone let two off-topic
+controls through when the gate was skipped. The gate still blocks those in
+production, but concurrent evaluation sessions will hit this limit.

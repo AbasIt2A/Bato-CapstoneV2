@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   askGeneralChat,
   HISTORY_EXCHANGES,
@@ -7,6 +8,11 @@ import {
   type SourceCitation,
 } from "../api";
 import { linkHost, sourceReference } from "../lib/source-links";
+import { hasConsented } from "../lib/consent";
+import { redactPersonalDetails } from "../lib/personal-details";
+import { useI18n } from "../lib/i18n";
+import ConsentGate from "../features/assessment/ConsentGate";
+import "../features/assessment/assessment.css";
 import "./general-chat.css";
 
 interface BotTurn {
@@ -93,6 +99,13 @@ function SourceChip({ citation }: { citation: SourceCitation }) {
 }
 
 export default function GeneralChat() {
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const c = t.chat;
+  // Same consent as the assessment: questions typed here are sent to
+  // third-party AI services and kept in the safety audit log, so nothing may
+  // be sent before the participant has agreed.
+  const [consented, setConsented] = useState(hasConsented);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -108,7 +121,10 @@ export default function GeneralChat() {
   }, [turns, sending]);
 
   async function send(raw: string) {
-    const message = raw.trim();
+    // Filtered before it is shown or sent: the transcript, the history sent
+    // with later turns and the server all see the same text, and the
+    // participant can see what was removed.
+    const message = redactPersonalDetails(raw.trim());
     if (!message || sending) return;
     setInput("");
     setSending(true);
@@ -134,8 +150,8 @@ export default function GeneralChat() {
           role: "bot",
           text:
             err instanceof Error
-              ? `Something went wrong: ${err.message}`
-              : "Something went wrong. Please try again.",
+              ? `${c.somethingWrong} (${err.message})`
+              : c.somethingWrong,
           sources: [],
           deflected: false,
           error: true,
@@ -156,27 +172,36 @@ export default function GeneralChat() {
 
   const remaining = MAX_MESSAGE_LENGTH - input.length;
 
+  if (!consented) {
+    return (
+      <div className="assessment-page">
+        <ConsentGate
+          onConsent={() => setConsented(true)}
+          onDecline={() => navigate("/")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="chat-page general-chat">
       <header className="page-title">
         <div>
-          <p className="section-eyebrow">KIDNEY HEALTH GUIDE</p>
-          <h1>Ask about kidney health</h1>
-          <p className="page-subtitle">Clear answers to general questions, grounded in trusted health sources.</p>
+          <p className="section-eyebrow">{c.eyebrow}</p>
+          <h1>{c.title}</h1>
+          <p className="page-subtitle">{c.subtitle}</p>
         </div>
-        <span className="header-badge">Source-based answers</span>
+        <span className="header-badge">{c.badge}</span>
       </header>
+      <p className="chat-ai-notice" role="note">{c.notice}</p>
 
       <div className="chat" ref={scrollRef} role="log" aria-label="Kidney health conversation" aria-live="polite">
         {turns.length === 0 && (
           <div className="empty">
             <span className="chat-empty-mark" aria-hidden="true">?</span>
-            <h2>What would you like to know?</h2>
-            <p className="empty-lead">
-              Explore kidney conditions, tests, medicines, prevention, and
-              kidney care in the Philippines.
-            </p>
-            <p className="starter-heading">Try a question</p>
+            <h2>{c.emptyTitle}</h2>
+            <p className="empty-lead">{c.emptyLead}</p>
+            <p className="starter-heading">{c.tryQuestion}</p>
             <div className="starters">
               {STARTERS.map((q) => (
                 <button
@@ -195,7 +220,7 @@ export default function GeneralChat() {
         {turns.map((turn, i) =>
           turn.role === "user" ? (
             <div key={i} className="bubble user">
-              <span className="message-label">You</span>
+              <span className="message-label">{c.you}</span>
               {turn.text}
             </div>
           ) : (
@@ -207,11 +232,11 @@ export default function GeneralChat() {
                 (turn.error ? " error" : "")
               }
             >
-              <span className="message-label">BATO</span>
-              <div className="bot-text">{turn.text}</div>
+              <span className="message-label">{c.batoAi}</span>
+              <div className="bot-text" lang="en">{turn.text}</div>
               {turn.sources.length > 0 && (
                 <div className="sources">
-                  <span className="sources-label">Sources</span>
+                  <span className="sources-label">{c.sources}</span>
                   {turn.sources.map((s, j) => (
                     <SourceChip key={j} citation={s} />
                   ))}
@@ -223,7 +248,7 @@ export default function GeneralChat() {
 
         {sending && (
           <div className="bubble bot typing" role="status">
-            <span className="sr-only">BATO is replying</span>
+            <span className="sr-only">{c.replying}</span>
             <span aria-hidden="true" />
             <span aria-hidden="true" />
             <span aria-hidden="true" />
@@ -238,14 +263,14 @@ export default function GeneralChat() {
           void send(input);
         }}
       >
-        <label className="sr-only" htmlFor="general-chat-input">Your kidney health question</label>
+        <label className="sr-only" htmlFor="general-chat-input">{c.inputLabel}</label>
         <textarea
           id="general-chat-input"
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Type your question…"
+          placeholder={c.placeholder}
           rows={1}
           maxLength={MAX_MESSAGE_LENGTH}
           disabled={sending}
@@ -253,7 +278,7 @@ export default function GeneralChat() {
         />
         {remaining < 200 && <span className="char-count">{remaining}</span>}
         <button type="submit" disabled={sending || !input.trim()}>
-          Send question
+          {c.send}
         </button>
       </form>
     </div>

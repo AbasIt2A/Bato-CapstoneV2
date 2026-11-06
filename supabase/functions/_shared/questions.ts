@@ -10,9 +10,31 @@
 // if they need a term explained, the frontend offers the LLM Clarification
 // Engine as a side-branch (PRD §6.3) and returns to this same step.
 
+/**
+ * Why an answer was rejected. The frontend translates by this code (English,
+ * Filipino, Bisaya); `message` stays the English text for English users.
+ */
+export type InvalidCode =
+  | "age_format"
+  | "age_range"
+  | "age_under_min"
+  | "sex"
+  | "yes_no"
+  | "unsure"
+  | "unsure_recall"
+  | "yes_no_unsure";
+
 export type ParseResult =
   | { ok: true; normalized: string; value: number | boolean }
-  | { ok: false; message: string };
+  | { ok: false; message: string; code: InvalidCode };
+
+/**
+ * Youngest age BATO screens. The study's inclusion criterion (UIC-REC
+ * protocol UG-ER-09-26-0744) is Filipino adults aged 20 and above; the
+ * consent screen asks the user to confirm it, and this is the server-side
+ * backstop for anyone who confirms and then types a younger age.
+ */
+export const MIN_AGE = 20;
 
 export interface QuestionSpec {
   /** Matches assessment_responses.variable_key and the scored.ts breakdown. */
@@ -34,13 +56,14 @@ export interface QuestionSpec {
   parse: (raw: string) => ParseResult;
 }
 
-const YES = new Set(["yes", "y", "oo"]);
-const NO = new Set(["no", "n", "hindi"]);
+// English, Filipino ("oo", "opo", "hindi") and Bisaya ("oo", "dili", "wala").
+const YES = new Set(["yes", "y", "oo", "opo", "oo po"]);
+const NO = new Set(["no", "n", "hindi", "hindi po", "dili", "wala"]);
 
 // "I'm not sure / I can't remember" phrasings, incl. common Tagalog/Bisaya.
 // Kept as a regex so free-typed sentences like "I dont remember" match.
 const UNSURE_SHAPE =
-  /\b(not[\s_]?sure|unsure|no idea|forgot(ten)?|(do|did|to)n'?t\s+(know|remember|recall|think so)|can('?|no)t\s+(remember|recall|say)|hindi\s+ko\s+(alam|matandaan)|di\s+ko\s+alam|wala\s+ko('y|y)?\s+kabalo|ambot)\b/i;
+  /\b(not[\s_]?sure|unsure|no idea|forgot(ten)?|(do|did|to)n'?t\s+(know|remember|recall|think so)|can('?|no)t\s+(remember|recall|say)|hindi\s+ko\s+(alam|matandaan)|di\s+ko\s+alam|(hindi|dili)\s+sigurado|wala\s+ko('y|y)?\s+kabalo|ambot)\b/i;
 
 export function isUnsure(raw: string): boolean {
   return UNSURE_SHAPE.test(raw.trim());
@@ -74,6 +97,7 @@ function makeYesNoParser(topic: string) {
         ])[Math.random() < 0.5 ? 0 : 1];
       return {
         ok: false,
+        code: recall ? "unsure_recall" : "unsure",
         message:
           `${guidance} Unsure answers count as "No" in this screening. ` +
           `If you're not sure what ${topic} means, ask me to explain it.`,
@@ -81,6 +105,7 @@ function makeYesNoParser(topic: string) {
     }
     return {
       ok: false,
+      code: "yes_no",
       message:
         'Please answer "yes" or "no". If you are not sure what this question means, you can ask me to explain it first.',
     };
@@ -98,6 +123,7 @@ export const QUESTIONS: QuestionSpec[] = [
       if (!/^\d{1,3}$/.test(v)) {
         return {
           ok: false,
+          code: "age_format",
           message: "Please enter your age as a whole number, for example 54.",
         };
       }
@@ -105,7 +131,16 @@ export const QUESTIONS: QuestionSpec[] = [
       if (age < 1 || age > 120) {
         return {
           ok: false,
+          code: "age_range",
           message: "That age doesn't look right. Please enter a number between 1 and 120.",
+        };
+      }
+      if (age < MIN_AGE) {
+        return {
+          ok: false,
+          code: "age_under_min",
+          message:
+            `BATO's screening is for adults aged ${MIN_AGE} and older. If you typed your age by mistake, please enter it again.`,
         };
       }
       return { ok: true, normalized: String(age), value: age };
@@ -119,10 +154,16 @@ export const QUESTIONS: QuestionSpec[] = [
     options: ["Male", "Female"],
     parse: (raw) => {
       const v = normalizeRaw(raw);
-      if (v === "female" || v === "f") return { ok: true, normalized: "female", value: true };
-      if (v === "male" || v === "m") return { ok: true, normalized: "male", value: false };
+      // Filipino "babae" / Bisaya "babaye"; "lalaki" is the same in both.
+      if (["female", "f", "babae", "babaye"].includes(v)) {
+        return { ok: true, normalized: "female", value: true };
+      }
+      if (["male", "m", "lalaki"].includes(v)) {
+        return { ok: true, normalized: "male", value: false };
+      }
       return {
         ok: false,
+        code: "sex",
         message: 'Please answer "male" or "female" (sex assigned at birth).',
       };
     },
@@ -192,6 +233,7 @@ export const QUESTIONS: QuestionSpec[] = [
       if (NO.has(v)) return { ok: true, normalized: "no", value: false };
       return {
         ok: false,
+        code: "yes_no_unsure",
         message: 'Please answer "yes", "no", or "not sure".',
       };
     },
@@ -202,4 +244,31 @@ export function getQuestion(key: string): QuestionSpec {
   const q = QUESTIONS.find((q) => q.key === key);
   if (!q) throw new Error(`Unknown SCORED variable key: ${key}`);
   return q;
+}
+
+/**
+ * Sentences in a prompt that tell the user HOW to enter an answer rather
+ * than what is being asked. The clarification engine read "Please type your
+ * age in years" as a request for help filling in the form, so they are
+ * dropped before a prompt is shown to it. Mirrors the frontend's
+ * INPUT_INSTRUCTION in AssessmentChat.tsx.
+ */
+const INPUT_INSTRUCTION =
+  /(?:^|\s)(?:please type|if you['’]ve never been told|if you have never been told)\b[^.?!]*[.?!]/gi;
+
+/**
+ * The screening question the user is looking at, as context for a
+ * clarification follow-up such as "why does this matter?" — or null for any
+ * key that is not exactly one of the nine.
+ *
+ * The key is client-supplied, but it only SELECTS from server-owned text; it
+ * never contributes text of its own. A spoofed key can at worst frame the
+ * question with a different screening prompt. Nothing here reads or touches
+ * an assessment.
+ */
+export function clarificationContext(key: unknown): string | null {
+  if (typeof key !== "string") return null;
+  const q = QUESTIONS.find((q) => q.key === key);
+  if (!q) return null;
+  return q.prompt.replace(INPUT_INSTRUCTION, "").replace(/\s+/g, " ").trim();
 }

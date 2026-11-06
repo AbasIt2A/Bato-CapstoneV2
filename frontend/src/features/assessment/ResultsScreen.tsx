@@ -1,6 +1,14 @@
 import { Link } from "react-router-dom";
 import type { ScreeningResult } from "../../lib/assessment-api";
+import { useI18n } from "../../lib/i18n";
 
+// Results screen. The UIC-REC (protocol UG-ER-09-26-0744) requires:
+//   - a PROMINENT disclaimer that BATO is a screening tool, not a clinical
+//     diagnostic instrument — always visible, never behind a disclosure;
+//   - Screen Positive: advice to seek professional medical evaluation;
+//   - Screen Negative: an explicit statement that a low score does not
+//     guarantee the absence of kidney disease and that routine check-ups
+//     remain essential (self-reported answers can miss real risk).
 export default function ResultsScreen({
   result,
   onRetake,
@@ -8,78 +16,66 @@ export default function ResultsScreen({
   result: ScreeningResult;
   onRetake: () => void;
 }) {
+  const { t } = useI18n();
+  const r = t.results;
   const positive = result.classification === "Screen Positive";
 
   return (
     <section className="assessment-panel assessment-results" aria-labelledby="assessment-results-title">
-      <span className="assessment-eyebrow">Assessment complete</span>
-      <h1 id="assessment-results-title">{positive ? "Screening suggests elevated risk" : "Screening did not suggest elevated risk"}</h1>
+      <span className="assessment-eyebrow">{r.eyebrow}</span>
+      <h1 id="assessment-results-title">{positive ? r.positiveTitle : r.negativeTitle}</h1>
       <div className="assessment-result-summary">
         <p className={"assessment-result-status " + (positive ? "assessment-result-positive" : "assessment-result-negative")}>
           {result.classification}
         </p>
         <p className="assessment-score">
-          <span>SCORED score</span>
+          <span>{r.scoreLabel}</span>
           <strong>{result.totalScore}<small> / 12</small></strong>
         </p>
       </div>
 
+      <div className="result-disclaimer" role="note">
+        <h2>{r.disclaimerTitle}</h2>
+        <p>{r.disclaimerBody}</p>
+      </div>
+
       {positive ? (
         <>
-          <p>
-            Your answers add up to a score that the SCORED tool classifies as{" "}
-            <strong>Screen Positive</strong> — meaning people with answers like
-            yours have a higher chance of having reduced kidney function. This
-            is <strong>not a diagnosis</strong>: it is a recommendation to get
-            a confirmatory test.
-          </p>
+          <p>{r.positiveBody}</p>
           <div className="assessment-next-step">
-            <h2>What to do next</h2>
-            <p>
-              Please consider visiting a doctor or health center for a simple
-              kidney check — usually a blood test (creatinine/eGFR) and a urine
-              test. Early detection makes a real difference.
-            </p>
+            <h2>{r.positiveNextTitle}</h2>
+            <p>{r.positiveNext}</p>
             <Link className="assessment-button assessment-button-primary assessment-facility-link" to="/facilities">
-              Find a nearby clinical laboratory
+              {r.findLab}
             </Link>
-            <p>For the blood test, confirm test availability with the facility first.</p>
+            <p>{r.confirmLab}</p>
           </div>
         </>
       ) : (
         <>
-          <p>
-            Your answers add up to a score that the SCORED tool classifies as{" "}
-            <strong>Screen Negative</strong> — no elevated CKD risk was
-            detected from your age and health history today.
-          </p>
+          <p>{r.negativeBody}</p>
+          <div className="result-disclaimer result-disclaimer-warning" role="note">
+            <h2>{r.negativeWarningTitle}</h2>
+            <p>{r.negativeWarning}</p>
+          </div>
           <div className="assessment-next-step">
-            <h2>What to do next</h2>
-            <p>
-              Keep it that way: stay hydrated, manage blood pressure and blood
-              sugar, and ask the Kidney Health Chat how to keep your kidneys
-              healthy.
-            </p>
+            <h2>{r.negativeNextTitle}</h2>
+            <p>{r.negativeNext}</p>
           </div>
         </>
       )}
 
       <details className="accuracy-note">
-        <summary>How accurate is this?</summary>
-        <p>
-          The score is computed by fixed, published medical rules (SCORED —
-          Bang et al., 2007), not by AI. Screening tools estimate risk; they
-          can miss cases and can flag people who turn out fine. Only laboratory
-          tests interpreted by a clinician can confirm CKD.
-        </p>
+        <summary>{r.accuracyTitle}</summary>
+        <p>{r.accuracyBody}</p>
       </details>
 
       <div className="assessment-actions">
         <button className="assessment-button assessment-button-secondary" onClick={onRetake}>
-          Retake the assessment
+          {r.retake}
         </button>
         <Link className={"assessment-button " + (positive ? "assessment-button-secondary" : "assessment-button-primary")} to="/chat">
-          Ask about kidney health
+          {r.askChat}
         </Link>
       </div>
     </section>

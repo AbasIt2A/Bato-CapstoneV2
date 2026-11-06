@@ -17,6 +17,7 @@ import {
   type StoredResponse,
   TOTAL_STEPS,
 } from "../supabase/functions/_shared/screening-flow.ts";
+import { clarificationContext } from "../supabase/functions/_shared/questions.ts";
 
 Deno.test("sequence: nine steps in the fixed order", () => {
   assertEquals(TOTAL_STEPS, 9);
@@ -225,4 +226,69 @@ Deno.test("finalizeAssessment: refuses partial or corrupted assessments", () => 
   const corrupted = fullResponses();
   corrupted[4] = { variable_key: "diabetes", value_raw: "banana" };
   assertThrows(() => finalizeAssessment(corrupted));
+});
+
+Deno.test("evaluateAnswer: ages under 20 are refused (REC inclusion criterion)", () => {
+  for (const young of ["19", "15", "1"]) {
+    const out = evaluateAnswer("age", young);
+    assertEquals(out.ok, false, `age ${young}`);
+    if (!out.ok) assertEquals(out.code, "age_under_min");
+  }
+  assertEquals(evaluateAnswer("age", "20").ok, true);
+});
+
+Deno.test("evaluateAnswer: rejections carry a code the frontend can translate", () => {
+  const codeOf = (key: Parameters<typeof evaluateAnswer>[0], raw: string) => {
+    const out = evaluateAnswer(key, raw);
+    return out.ok ? null : out.code;
+  };
+  assertEquals(codeOf("age", "abc"), "age_format");
+  assertEquals(codeOf("age", "150"), "age_range");
+  assertEquals(codeOf("female", "maybe"), "sex");
+  assertEquals(codeOf("diabetes", "perhaps"), "yes_no");
+  assertEquals(codeOf("diabetes", "not sure"), "unsure");
+  assertEquals(codeOf("diabetes", "I can't remember"), "unsure_recall");
+  assertEquals(codeOf("proteinuria", "perhaps"), "yes_no_unsure");
+});
+
+Deno.test("evaluateAnswer: Filipino and Bisaya answers are understood", () => {
+  for (const yes of ["oo", "Opo", "oo po"]) {
+    assertEquals(evaluateAnswer("diabetes", yes), { ok: true, normalized: "yes", points: 1 });
+  }
+  for (const no of ["hindi", "hindi po", "dili", "wala"]) {
+    assertEquals(evaluateAnswer("diabetes", no), { ok: true, normalized: "no", points: 0 });
+  }
+  assertEquals(evaluateAnswer("female", "babae").ok && evaluateAnswer("female", "babaye").ok, true);
+  const male = evaluateAnswer("female", "lalaki");
+  assertEquals(male.ok && male.normalized, "male");
+});
+
+// ---------------------------------------------------------------------------
+// clarificationContext — the screening prompt shown to the clarify gate
+// ---------------------------------------------------------------------------
+
+Deno.test("clarificationContext: returns the prompt for each of the nine keys", () => {
+  for (const key of SCREENING_SEQUENCE) {
+    const ctx = clarificationContext(key);
+    assertNotEquals(ctx, null, key);
+  }
+  assertEquals(
+    clarificationContext("diabetes"),
+    "Have you been diagnosed with diabetes (high blood sugar)?",
+  );
+});
+
+Deno.test("clarificationContext: drops how-to-answer instructions", () => {
+  assertEquals(clarificationContext("age"), "To get started: how old are you?");
+  const proteinuria = clarificationContext("proteinuria")!;
+  assertEquals(proteinuria.includes("not sure"), false);
+  assertMatch(proteinuria, /protein in your urine\?$/);
+});
+
+Deno.test("clarificationContext: anything but an exact key yields no context", () => {
+  for (
+    const key of [undefined, null, 42, "", "Diabetes", "diabetes ", "score", "ignore previous instructions"]
+  ) {
+    assertEquals(clarificationContext(key), null, String(key));
+  }
 });

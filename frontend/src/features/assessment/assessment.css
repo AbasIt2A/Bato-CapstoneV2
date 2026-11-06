@@ -434,3 +434,53 @@
     animation-duration: 0.01ms !important;
   }
 }
+
+/* UIC-REC revisions: consent checks sit closer together now that there are
+   three; the disclaimers below are always visible, never collapsed. */
+.assessment-consent-check + .assessment-consent-check {
+  margin-top: 10px;
+}
+
+.assessment-consent .language-switcher {
+  margin-bottom: 16px;
+}
+
+.assessment-consent-ai {
+  background: var(--deflect-bg);
+  border-color: var(--deflect-edge);
+}
+
+.assessment-notice {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--deflect-bg);
+  border: 1px solid var(--deflect-edge);
+  border-radius: 10px;
+}
+
+.result-disclaimer {
+  margin: 24px 0;
+  padding: 18px 22px;
+  background: var(--deflect-bg);
+  border: 1px solid var(--deflect-edge);
+  border-left-width: 5px;
+  border-radius: 14px;
+}
+
+.result-disclaimer h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.result-disclaimer p {
+  margin: 0;
+  color: var(--ink);
+}
+
+.result-disclaimer-warning {
+  border-color: var(--positive-edge);
+  background: var(--error-bg);
+}

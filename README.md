@@ -132,6 +132,8 @@ chase hit rate re-introduces exactly the failure it was built to avoid.
 | `GROQ_GATE_MODEL` | gate | Groq classifier model (default `openai/gpt-oss-20b`) |
 | `GENERAL_CHAT_VARIATION_GROQ_API_KEY` | general chat | Optional key for cached-answer rewording and equivalence checks; falls back to `GROQ_API_KEY` |
 | `ANSWER_CACHE_ENABLED` | answer cache | Set `false` to bypass the cache entirely (default on) |
+| `ANSWER_CACHE_STORE_NEW` | answer cache | Set `true` only while the research team pre-fills the cache; default off so participant questions are never stored there (UIC-REC) |
+| `CHAT_AUDIT_LOG_ENABLED` | both chatbots | Safety audit log of every reply in `chat_audit_log` (default on; UIC-REC). **Set to `false` once the Sprint 6 evaluation ends** — see [Chat audit log](#chat-audit-log-sprint-6-evaluation) |
 | `CACHE_HIT_THRESHOLD` / `CLARIFY_CACHE_HIT_THRESHOLD` | answer cache | Tier-2 similarity floor (0.97 / 0.98). Set above the measured overlap — do not lower without re-measuring |
 | `VECTOR_SIMILARITY_FLOOR` | retrieval | Override recall floor (default 0.45) |
 | `RERANK_THRESHOLD` | rerank | Override relevance gate (default 0.30) |
@@ -162,3 +164,27 @@ deno task ingest                         # embed + insert chunks (uses .env)
 npx supabase functions deploy general-chat screening clarify  # deploy the Edge Functions
 deno task test:live                      # full live suite (uses .env)
 ```
+
+## Chat audit log (Sprint 6 evaluation)
+
+Every chatbot reply is recorded in `chat_audit_log` for the UIC-REC safety
+review. Questions pass through the personal-details filter
+(`supabase/functions/_shared/personal-details.ts`) before they are stored, or
+sent to any AI service.
+
+- **Coding a session:** open BATO for each participant as
+  `https://<site>/?pid=P07`. The code (`P` + 1–4 digits) is kept for that
+  browser tab, removed from the address bar, and stored on that
+  participant's audit rows. Use a fresh tab (or private window) per
+  participant, since the code lasts as long as the tab.
+- **Withdrawal:** in the Supabase SQL editor run
+  `select public.delete_participant_audit_rows('P07');` and record the row
+  count it returns.
+- **End of retention:** `select * from public.purge_study_records('YYYY-MM-DD');`
+  (the study end date) deletes every row; it refuses to run before three years
+  have passed.
+- **⚠️ After Sprint 6:** once the evaluation ends, set the secret
+  `CHAT_AUDIT_LOG_ENABLED=false`
+  (`npx supabase secrets set CHAT_AUDIT_LOG_ENABLED=false`). The log exists
+  for the study only; leaving it on would keep recording questions from
+  people who never consented to the study.

@@ -1,8 +1,15 @@
 import { useState } from "react";
 import { recordConsent } from "../../lib/consent";
+import { LanguageSwitcher, useI18n } from "../../lib/i18n";
 
 // Explicit consent screen before any data collection (PRD §12, Philippine
-// Data Privacy Act of 2012 / RA 10173). Copy mirrors the capstone frontend.
+// Data Privacy Act of 2012 / RA 10173), shown before both the assessment and
+// the General CKD Chatbot. Mirrors the study ICF and the UIC-REC decision
+// letter (protocol UG-ER-09-26-0744):
+//   - the age gate and exclusion self-confirmation the REC requires;
+//   - the disclosure that participants will use an AI-powered chatbot;
+//   - what is and is not kept, and the third-party AI services that receive
+//     typed questions — keep this in step with the ICF wording.
 export default function ConsentGate({
   onConsent,
   onDecline,
@@ -10,7 +17,11 @@ export default function ConsentGate({
   onConsent: () => void;
   onDecline: () => void;
 }) {
-  const [checked, setChecked] = useState(false);
+  const { t } = useI18n();
+  const c = t.consent;
+  const [adult, setAdult] = useState(false);
+  const [eligible, setEligible] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   function accept() {
     recordConsent();
@@ -19,47 +30,43 @@ export default function ConsentGate({
 
   return (
     <section className="assessment-panel assessment-consent" aria-labelledby="assessment-consent-title">
-      <span className="assessment-eyebrow">Your privacy matters</span>
-      <h1 id="assessment-consent-title">Before we start</h1>
-      <p>
-        BATO is a student capstone project of the College of Computer Studies,
-        University of the Immaculate Conception (Davao City). It screens for
-        Chronic Kidney Disease (CKD) risk using the validated SCORED
-        questionnaire — it does <strong>not</strong> diagnose any disease.
-      </p>
+      <LanguageSwitcher />
+      <span className="assessment-eyebrow">{c.eyebrow}</span>
+      <h1 id="assessment-consent-title">{c.title}</h1>
+      <p>{c.intro}</p>
+      <div className="assessment-consent-data assessment-consent-ai">
+        <h2>{c.aiTitle}</h2>
+        <p>{c.aiBody}</p>
+      </div>
       <div className="assessment-consent-data">
-        <h2>What BATO stores</h2>
-        <p>To work, and for the study&apos;s evaluation, BATO stores:</p>
+        <h2>{c.dataTitle}</h2>
         <ul>
-          <li>
-            your answers to the 9 screening questions and your resulting score,
-          </li>
-          <li>your chat messages with BATO&apos;s assistants, and</li>
-          <li>any evaluation survey answers you choose to submit.</li>
+          {c.dataItems.map((item) => <li key={item}>{item}</li>)}
         </ul>
       </div>
-      <p>
-        No name, email, or account is required — your session is anonymous.
-        Your data is used only for this capstone&apos;s research evaluation, in
-        line with the Philippine Data Privacy Act of 2012 (RA 10173), and is
-        protected so only you (and the research team, in anonymized form) can
-        access it.
-      </p>
+      <p>{c.voluntary}</p>
       <label className="assessment-consent-check">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => setChecked(e.target.checked)}
-        />
-        I understand and consent to my responses being stored for this
-        research.
+        <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} />
+        {c.checkAge}
+      </label>
+      <label className="assessment-consent-check">
+        <input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />
+        {c.checkHealth}
+      </label>
+      <label className="assessment-consent-check">
+        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+        {c.checkAgree}
       </label>
       <div className="assessment-actions">
-        <button className="assessment-button assessment-button-primary" disabled={!checked} onClick={accept}>
-          I consent — start screening
+        <button
+          className="assessment-button assessment-button-primary"
+          disabled={!adult || !eligible || !agreed}
+          onClick={accept}
+        >
+          {c.accept}
         </button>
         <button className="assessment-button assessment-button-secondary" onClick={onDecline}>
-          No thanks
+          {c.decline}
         </button>
       </div>
     </section>

@@ -38,6 +38,7 @@ import { SCOPE_PROFILES } from "../supabase/functions/_shared/scopes.ts";
 
 const MANAGED = [
   "ANSWER_CACHE_ENABLED",
+  "ANSWER_CACHE_STORE_NEW",
   "GEMINI_MODEL",
   "CLARIFY_GEMINI_MODEL",
 ];
@@ -351,7 +352,7 @@ Deno.test("cache: an exact-tier error is a miss, not a thrown request", async ()
 });
 
 Deno.test("cache: a store writes the normalised form alongside the raw question", async () => {
-  await withEnv({}, async () => {
+  await withEnv({ ANSWER_CACHE_STORE_NEW: "true" }, async () => {
     const { client, inserts } = stubClient({});
     await storeAnswer(client, {
       scope: "general_education",
@@ -489,8 +490,23 @@ Deno.test("cache: a row with an empty reply is treated as a miss", async () => {
 // Store
 // ---------------------------------------------------------------------------
 
-Deno.test("cache: a stored entry carries its scope, question, reply and model", async () => {
+Deno.test("cache: new entries are NOT stored by default (study retention)", async () => {
   await withEnv({}, async () => {
+    const { client, inserts } = stubClient({});
+    await storeAnswer(client, {
+      scope: "general_education",
+      question: "a participant's question",
+      embedding: VECTOR,
+      reply: "r",
+      sources: [],
+      model: "m",
+    });
+    assertEquals(inserts.length, 0);
+  });
+});
+
+Deno.test("cache: a stored entry carries its scope, question, reply and model", async () => {
+  await withEnv({ ANSWER_CACHE_STORE_NEW: "true" }, async () => {
     const { client, inserts } = stubClient({});
     await storeAnswer(client, {
       scope: "general_education",
@@ -510,7 +526,7 @@ Deno.test("cache: a stored entry carries its scope, question, reply and model", 
 });
 
 Deno.test("cache: a failed store never throws into the request path", async () => {
-  await withEnv({}, async () => {
+  await withEnv({ ANSWER_CACHE_STORE_NEW: "true" }, async () => {
     const { client } = stubClient({ insertError: { message: "relation does not exist" } });
     await storeAnswer(client, {
       scope: "general_education",

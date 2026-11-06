@@ -2,6 +2,9 @@
 // with the public anon key — no supabase-js needed, since the chatbot is the
 // only backend surface this frontend talks to.
 
+import { getParticipantCode } from "./lib/participant-code";
+import { redactPersonalDetails } from "./lib/personal-details";
+
 export interface SourceCitation {
   source: string;
   title: string;
@@ -52,7 +55,18 @@ export async function askGeneralChat(
       Authorization: `Bearer ${ANON_KEY}`,
       apikey: ANON_KEY,
     },
-    body: JSON.stringify({ message, history }),
+    // Filtered here as well as on the server: personal details should not
+    // leave the browser at all. The caller filters too, so the transcript
+    // shows what was sent; filtering again is a no-op.
+    body: JSON.stringify({
+      message: redactPersonalDetails(message),
+      history: history.map((turn) =>
+        turn.role === "user"
+          ? { ...turn, text: redactPersonalDetails(turn.text) }
+          : turn
+      ),
+      participantCode: getParticipantCode(),
+    }),
   });
 
   const data: unknown = await res.json().catch(() => null);

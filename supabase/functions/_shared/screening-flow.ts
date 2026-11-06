@@ -8,7 +8,12 @@
 // It imports only questions.ts (wording + parsing) and scored.ts (scoring).
 // Nothing here may ever import the LLM client.
 
-import { getQuestion, QUESTIONS, type QuestionSpec } from "./questions.ts";
+import {
+  getQuestion,
+  type InvalidCode,
+  QUESTIONS,
+  type QuestionSpec,
+} from "./questions.ts";
 import {
   agePoints,
   binaryPoints,
@@ -79,7 +84,7 @@ export function nextStepIndex(responses: StoredResponse[]): number {
 
 export type AnswerOutcome =
   | { ok: true; normalized: string; points: number }
-  | { ok: false; message: string };
+  | { ok: false; message: string; code: InvalidCode };
 
 /**
  * Validates one raw answer for one variable and, if valid, awards its points

@@ -13,16 +13,18 @@ last_updated: 2026-08-11
 # official-health-body/doh/kidney-health-philippines.md. Adjacent acronyms,
 # different organisations — never cross-attribute a figure between them.
 #
-# Dual-scoped, and this is the highest-value clarification content added in
-# this batch: "high blood pressure" is a SCORED variable, and a Filipino user
-# answering that question mid-assessment needs the threshold used in the
-# PHILIPPINES, which is deliberately NOT the American one. A user reading a
-# 130/80 threshold would answer the SCORED question differently from a user
-# reading 140/90.
+# General education ONLY since 2026-11-06 (was dual-scoped). It was added to
+# clarification on the reasoning that "a user reading a 130/80 threshold
+# would answer the SCORED question differently from a user reading 140/90".
+# That reasoning is the problem: a threshold mid-assessment invites a user to
+# classify themselves from their own (often single, unreliable) reading,
+# whereas the SCORED item asks whether they already know they have high blood
+# pressure. The Philippine 140/90 definition remains available in the general
+# Kidney chat, where no score depends on it. See REVIEW-FLAGS.md §17.
 #
 # Treatment content — BP targets, drug classes, therapy thresholds — was NOT
 # carried over, per safety-boundaries.md. See REVIEW-FLAGS.md §12.
-scopes: [general_education, screening_clarification]
+scopes: [general_education]
 topic_tags: [psh, hypertension, blood-pressure, philippines, definitions, measurement, risk-factors]
 ---
 

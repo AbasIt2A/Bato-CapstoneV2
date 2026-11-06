@@ -15,7 +15,10 @@
 // Auth: an anonymous supabase-js session, attached automatically to
 // functions.invoke().
 
+import { getParticipantCode } from "./participant-code";
+import { redactPersonalDetails } from "./personal-details";
 import { ensureSession, getSupabaseClient } from "./supabase-client";
+import type { InvalidCode } from "./strings";
 
 export interface StepPayload {
   index: number;
@@ -41,7 +44,9 @@ export interface StartResponse {
 // (valid=true + completed + result).
 export interface AnswerResponse {
   valid: boolean;
+  /** English text of a rejection; `code` lets the UI translate it. */
   message?: string;
+  code?: InvalidCode;
   step?: StepPayload;
   completed?: boolean;
   result?: ScreeningResult;
@@ -109,10 +114,18 @@ export function abandonScreening(assessmentId: string): Promise<{ ok: boolean }>
  * retrieval hint (the SCORED variable the user is looking at) so a bare
  * "what does that mean?" still finds the right definition — it carries no
  * assessment identity and the engine cannot act on it.
+ *
+ * `participantCode` is the researcher-set evaluation code (see
+ * participant-code.ts). It is not assessment identity either: only the
+ * audit-log wrapper reads it, and the engine never sees it.
  */
 export function askClarification(
   question: string,
   variableKey?: string,
 ): Promise<ClarifyResponse> {
-  return invoke<ClarifyResponse>("clarify", { question, variableKey });
+  return invoke<ClarifyResponse>("clarify", {
+    question: redactPersonalDetails(question),
+    variableKey,
+    participantCode: getParticipantCode(),
+  });
 }

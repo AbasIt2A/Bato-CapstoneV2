@@ -6,17 +6,26 @@
 // requests go to the separate `clarify` function; the frontend then returns
 // to the same step (FR-3).
 //
+// RETENTION (ICF, UIC-REC protocol UG-ER-09-26-0744): BATO does not keep
+// screening answers or results after the session. Rows exist only while an
+// assessment is in progress — the server needs them to know which question
+// is next and to score from its own records rather than the client's. The
+// assessment and its answers are DELETED the moment the result is returned,
+// or when the user abandons. Anything left behind by a closed tab is removed
+// once it is older than STALE_ASSESSMENT_MS (here, on every start, and by the
+// purge_stale_assessments() cron job in the retention migration).
+//
 // Actions (POST JSON):
 //   { action: "start" }
 //     → { assessmentId, step }
 //   { action: "answer", assessmentId, value }
-//     → { valid: false, message, step }                 (re-ask, no advance)
+//     → { valid: false, message, code, step }           (re-ask, no advance)
 //     → { valid: true, step }                           (next question)
-//     → { valid: true, completed: true, result }        (flow finished)
+//     → { valid: true, completed: true, result }        (finished; deleted)
 //   { action: "status", assessmentId }
-//     → { status, step? , result? }
+//     → { status: "in_progress", step }   (404 once finished — nothing kept)
 //   { action: "abandon", assessmentId }
-//     → { ok: true }
+//     → { ok: true }                                    (deleted)
 
 import {
   evaluateAnswer,
@@ -33,6 +42,13 @@ import {
   jsonResponse,
   resolveCorsOrigin,
 } from "../_shared/supabase.ts";
+
+/**
+ * An unfinished assessment older than this is treated as abandoned and
+ * deleted. Three hours is far past the 15–20 minute study session, so it
+ * never removes a participant who is still answering.
+ */
+const STALE_ASSESSMENT_MS = 3 * 60 * 60 * 1000;
 
 Deno.serve(async (req) => {
   const response = await handleRequest(req);
@@ -64,6 +80,7 @@ async function handleRequest(req: Request): Promise<Response> {
   try {
     switch (body.action) {
       case "start": {
+        await purgeStaleAssessments(supabase);
         const { data, error } = await supabase
           .from("assessments")
           .insert({ user_id: userId })
@@ -76,18 +93,6 @@ async function handleRequest(req: Request): Promise<Response> {
       case "status": {
         const assessment = await loadOwnAssessment(supabase, body, userId);
         if (!assessment) return jsonResponse({ error: "Not found" }, 404);
-        if (assessment.status === "completed") {
-          return jsonResponse({
-            status: "completed",
-            result: {
-              totalScore: assessment.total_score,
-              classification: assessment.classification,
-            },
-          });
-        }
-        if (assessment.status === "abandoned") {
-          return jsonResponse({ status: "abandoned" });
-        }
         const responses = await loadResponses(supabase, assessment.id);
         return jsonResponse({
           status: "in_progress",
@@ -119,6 +124,7 @@ async function handleRequest(req: Request): Promise<Response> {
           return jsonResponse({
             valid: false,
             message: outcome.message,
+            code: outcome.code,
             step: stepPayload(index),
           });
         }
@@ -154,16 +160,9 @@ async function handleRequest(req: Request): Promise<Response> {
           );
         }
 
-        const { error: updateError } = await supabase
-          .from("assessments")
-          .update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            total_score: result.totalScore,
-            classification: result.classification,
-          })
-          .eq("id", assessment.id);
-        if (updateError) throw updateError;
+        // Retention: the result goes to the participant and nowhere else.
+        // Deleting the assessment cascades to its answers.
+        await deleteAssessment(supabase, assessment.id);
 
         return jsonResponse({
           valid: true,
@@ -178,13 +177,7 @@ async function handleRequest(req: Request): Promise<Response> {
       case "abandon": {
         const assessment = await loadOwnAssessment(supabase, body, userId);
         if (!assessment) return jsonResponse({ error: "Not found" }, 404);
-        if (assessment.status === "in_progress") {
-          const { error } = await supabase
-            .from("assessments")
-            .update({ status: "abandoned" })
-            .eq("id", assessment.id);
-          if (error) throw error;
-        }
+        await deleteAssessment(supabase, assessment.id);
         return jsonResponse({ ok: true });
       }
 
@@ -194,6 +187,36 @@ async function handleRequest(req: Request): Promise<Response> {
   } catch (err) {
     console.error("screening error:", err);
     return jsonResponse({ error: "Internal error" }, 500);
+  }
+}
+
+/** Deletes one assessment; its answers go with it (on delete cascade). */
+async function deleteAssessment(
+  supabase: ReturnType<typeof createServiceClient>,
+  assessmentId: string,
+) {
+  const { error } = await supabase
+    .from("assessments")
+    .delete()
+    .eq("id", assessmentId);
+  if (error) throw error;
+}
+
+/**
+ * Removes assessments left unfinished by a closed tab. Best effort: a failure
+ * is logged and must never stop a participant from starting. The cron job in
+ * the retention migration covers the case where nobody starts a new one.
+ */
+async function purgeStaleAssessments(
+  supabase: ReturnType<typeof createServiceClient>,
+) {
+  const cutoff = new Date(Date.now() - STALE_ASSESSMENT_MS).toISOString();
+  const { error } = await supabase
+    .from("assessments")
+    .delete()
+    .lt("started_at", cutoff);
+  if (error) {
+    console.warn("screening: stale-assessment purge failed:", error.message);
   }
 }
 

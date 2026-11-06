@@ -61,7 +61,7 @@ interface Probe {
    * Indicative only: the probe string that produced it is unknown.
    */
   baseline?: number;
-  kind: "scored_variable" | "new_content" | "off_topic";
+  kind: "scored_variable" | "new_content" | "excluded" | "off_topic";
 }
 
 // The nine SCORED variables, phrased as a user mid-assessment would actually
@@ -85,8 +85,14 @@ const PROBES: Probe[] = [
   { id: "albumin", query: "what is albumin in the urine", kind: "new_content" },
   { id: "egfr", query: "what is eGFR", kind: "new_content" },
   { id: "uacr", query: "what is a urine albumin to creatinine ratio", kind: "new_content" },
-  { id: "bp_threshold", query: "what blood pressure counts as high in the Philippines", kind: "new_content" },
+
   { id: "ckd_definition", query: "how is chronic kidney disease defined", kind: "new_content" },
+
+  // Removed from this scope on 2026-11-06 (REVIEW-FLAGS.md §17): symptoms and
+  // the PSH threshold. Reported for the record, but counted neither as in-scope
+  // nor as controls. A strong top hit here means that content leaked back in.
+  { id: "bp_threshold", query: "what blood pressure counts as high in the Philippines", kind: "excluded" },
+  { id: "symptoms_anemia", query: "what are the symptoms of anemia", kind: "excluded" },
 
   // Off-topic controls. The 2026-08-06 pair scored 0.489 and 0.494; those
   // strings are unknown, so these establish a fresh control baseline. They
@@ -186,7 +192,7 @@ async function main() {
   console.log("\nRunner-up margins (small margin ⇒ two chunks competing):\n");
   console.table(
     results
-      .filter((r) => r.probe.kind !== "off_topic" && r.hits.length >= 2)
+      .filter((r) => r.probe.kind !== "off_topic" && r.probe.kind !== "excluded" && r.hits.length >= 2)
       .map(({ probe, hits }) => ({
         probe: probe.id,
         top: Number(hits[0].similarity.toFixed(3)),
@@ -199,7 +205,7 @@ async function main() {
 
   const seen = new Map<string, string[]>();
   for (const { probe, hits } of results) {
-    if (probe.kind === "off_topic" || hits.length === 0) continue;
+    if (probe.kind === "off_topic" || probe.kind === "excluded" || hits.length === 0) continue;
     const key = hits[0].heading_path;
     seen.set(key, [...(seen.get(key) ?? []), probe.id]);
   }
@@ -218,7 +224,9 @@ async function main() {
 
   // --- Verdict -------------------------------------------------------------
 
-  const inScope = results.filter((r) => r.probe.kind !== "off_topic");
+  const inScope = results.filter((r) =>
+    r.probe.kind !== "off_topic" && r.probe.kind !== "excluded"
+  );
   const offTopic = results.filter((r) => r.probe.kind === "off_topic");
 
   const topOf = (r: Result) => r.hits[0]?.similarity ?? 0;

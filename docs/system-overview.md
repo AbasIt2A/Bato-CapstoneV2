@@ -201,6 +201,14 @@ Same pipeline, stricter thresholds, scope hard-locked to
 variance was causing it to refuse valid screening questions ~1 run in 4). Adds
 one stage general-chat lacks in the same position — see §5.3.
 
+Before the gate, [clarify-redirect.ts](../supabase/functions/_shared/clarify-redirect.ts)
+answers symptom, reading-threshold and "do I have it?" questions with a fixed
+per-condition reply — no retrieval, no model call. SCORED asks whether a user
+already *knows* they have a condition; symptoms or thresholds would let an
+unsure user self-diagnose instead of answering 0. For the same reason the
+NIDDK symptoms file and the PSH 140/90 file are `general_education` only.
+Rationale and measurements: [REVIEW-FLAGS.md §17](../knowledge/REVIEW-FLAGS.md).
+
 **Every infrastructure failure in both RAG functions degrades to the approved
 deflection with a server-side log — never a raw 500, and never a stall
 mid-assessment.**
@@ -371,6 +379,16 @@ clarification alters a recorded variable.
   harmless by construction — it only widens the *text* of the embedding query,
   never the scope, and is sanitized to word characters so it cannot smuggle
   delimiters.
+- The same key also **selects** the current screening prompt from
+  [questions.ts](../supabase/functions/_shared/questions.ts)
+  (`clarificationContext`), which the gate reads as a one-turn conversation.
+  That lets a follow-up with no subject of its own — "why does this matter?"
+  — resolve to the question the user is on, and the gate's standalone rewrite
+  becomes the retrieval query and the question generated against. The key
+  only picks among nine server-owned strings by exact match; an unknown key
+  adds nothing. The engine still explains *why a condition matters for kidney
+  health* but never how many points it carries or what an answer does to
+  the total.
 
 ### 5.5 The two-tier answer cache
 
@@ -507,14 +525,14 @@ provenance; the front-matter `source` field still *defines* it.
 | `clinical-guidelines/kdigo/ckd-stages.md` | KDIGO | 1 | general |
 | `clinical-guidelines/kdoqi/nutrition-care-in-ckd.md` | KDOQI | 5 | general |
 | `clinical-guidelines/nice/who-should-be-tested.md` | NICE | 7 | general |
-| `clinical-guidelines/psh/high-blood-pressure-in-the-philippines.md` | PSH | 5 | **both** |
+| `clinical-guidelines/psh/high-blood-pressure-in-the-philippines.md` | PSH | 5 | general (clarify removed 2026-11-06, §17) |
 | `official-health-body/cdc/ckd-basics-and-awareness.md` | CDC | 8 | general |
 | `official-health-body/doh/kidney-health-philippines.md` | DOH | 8 | general |
 | `official-health-body/niddk/ckd-basics.md` | NIDDK | 2 | general |
 | `official-health-body/niddk/diet-and-lifestyle.md` | NIDDK | 3 | general |
 | `official-health-body/niddk/safety-boundaries.md` | NIDDK | 1 | **both** |
 | `official-health-body/niddk/screening-and-risk-factors.md` | NIDDK | 9 | **both** |
-| `official-health-body/niddk/symptoms-causes-complications.md` | NIDDK | 3 | **both** |
+| `official-health-body/niddk/symptoms-causes-complications.md` | NIDDK | 3 | general (clarify removed 2026-11-06, §17) |
 | `official-health-body/niddk/tests-and-diagnosis.md` | NIDDK | 9 | **both** |
 | `official-health-body/niddk/treatment-dialysis-transplant.md` | NIDDK | 2 | general |
 | `official-health-body/who/kidney-health-policy.md` | WHO | 9 | general |
@@ -691,6 +709,11 @@ two-tier cache, the scoring engine and state machine, the frontend, and the
   as the real gate.
 - `ALLOWED_ORIGIN` must be set before any production deploy, or CORS falls
   back to `*`.
+- `CHAT_AUDIT_LOG_ENABLED` is on for the Sprint 6 evaluation and **must be
+  set to `false` once the evaluation ends** (`npx supabase secrets set
+  CHAT_AUDIT_LOG_ENABLED=false`). Coding sessions (`?pid=P07`), withdrawal
+  deletion and end-of-retention disposal are described in the README under
+  "Chat audit log".
 - TAM and TiMT item wordings need verbatim alignment with the manuscript
   before the evaluation study.
 - `knowledge/REVIEW-FLAGS.md` still carries unresolved clinical items

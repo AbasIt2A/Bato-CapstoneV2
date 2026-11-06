@@ -2,7 +2,8 @@
 //
 // Free-form, topic-constrained conversational assistant. Stateless on the
 // SERVER (no chat-session persistence): the client sends the recent turns
-// with each request, and nothing about the conversation is stored here.
+// with each request. The only record kept is one safety-audit row per reply
+// (see _shared/audit-log.ts), written around the handler below.
 // Grounds every answer in retrieval, never in a baked-in knowledge base:
 //
 //   (1) input gate classifies in_scope + injection_detected, and — when the
@@ -46,8 +47,11 @@
 // question is what stops one conversation's answer being served into
 // another's.
 //
-// POST { message: string, history?: {role, text}[] }
+// POST { message: string, history?: {role, text}[], participantCode?: string }
 //   → { reply, sources, deflected }
+//
+// participantCode is read only by the audit-log wrapper; the pipeline below
+// never sees it.
 
 import {
   classifyQuery,
@@ -99,6 +103,8 @@ import {
   resolveCorsOrigin,
 } from "../_shared/supabase.ts";
 import type { RetrievalScope } from "../_shared/scopes.ts";
+import { withChatAudit } from "../_shared/audit-log.ts";
+import { redactPersonalDetails } from "../_shared/personal-details.ts";
 
 /**
  * Hard-locked. Never taken from the request — the client cannot widen this
@@ -158,7 +164,13 @@ function serviceError(): Response {
 }
 
 Deno.serve(async (req) => {
-  const response = await handleRequest(req);
+  // Every reply is recorded in the safety audit log (see audit-log.ts).
+  const response = await withChatAudit(req, {
+    supabase: createServiceClient,
+    scope: SCOPE,
+    questionField: "message",
+    serviceErrorMessage: SERVICE_ERROR_MESSAGE,
+  }, handleRequest);
   response.headers.set("Access-Control-Allow-Origin", resolveCorsOrigin(req));
   return response;
 });
@@ -178,18 +190,25 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-  if (!message) {
+  const rawMessage = typeof body.message === "string" ? body.message.trim() : "";
+  if (!rawMessage) {
     return jsonResponse({ error: "message is required" }, 400);
   }
-  if (message.length > MAX_MESSAGE_LENGTH) {
+  if (rawMessage.length > MAX_MESSAGE_LENGTH) {
     return jsonResponse({ error: "Message is too long" }, 400);
   }
+  // Personal details are removed before the text reaches the gate, the
+  // answer cache, Gemini, Groq or Cohere (see personal-details.ts). The
+  // browser filters first, but no client is trusted to.
+  const message = redactPersonalDetails(rawMessage);
 
   // Optional, unverified, and validated rather than trusted: malformed
   // history degrades to no history, which is simply the single-turn request
-  // this endpoint accepted before. See the security note in gate.ts.
-  const history: ConversationTurn[] = normalizeHistory(body.history);
+  // this endpoint accepted before. See the security note in gate.ts. User
+  // turns are filtered for the same reason as the message.
+  const history: ConversationTurn[] = normalizeHistory(body.history).map((turn) =>
+    turn.role === "user" ? { ...turn, text: redactPersonalDetails(turn.text) } : turn
+  );
 
   try {
     const supabase = createServiceClient();
@@ -208,7 +227,11 @@ async function handleRequest(req: Request): Promise<Response> {
       verdict = { in_scope: true, injection_detected: false, reason: "gate-error" };
     }
     if (!verdict.in_scope || verdict.injection_detected) {
-      console.warn("general-chat: gate blocked message:", verdict.reason);
+      // Flags only: verdict.reason is model-written and can paraphrase the
+      // participant's question.
+      console.warn(
+        `general-chat: gate blocked message (in_scope=${verdict.in_scope}, injection=${verdict.injection_detected})`,
+      );
       return deflect();
     }
 
@@ -217,10 +240,10 @@ async function handleRequest(req: Request): Promise<Response> {
     // rewrite did not survive sanitizeRewrite() — in all three cases the
     // pipeline behaves exactly as the single-turn version did.
     const question = verdict.standalone_question ?? message;
+    // Never log participant text, or text derived from it (REC
+    // zero-retention requirement): function logs are kept by Supabase.
     if (question !== message) {
-      console.info(
-        `general-chat: resolved follow-up in context — "${message}" → "${question}"`,
-      );
+      console.info("general-chat: resolved a follow-up question in context");
     }
 
     // Serves a cache hit. Runs only AFTER the gate, so nothing the gate would
@@ -345,7 +368,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const reformulated = await reformulateForRetrieval(question);
       if (reformulated) {
         console.info(
-          `general-chat: nothing cleared rerank — retrying retrieval as "${reformulated}"`,
+          "general-chat: nothing cleared rerank — retrying with a reformulated query",
         );
         try {
           const retryEmbedding = await embedQuery(reformulated);

@@ -162,6 +162,13 @@ function envNumber(name: string, fallback: number): number {
  * (sex), strongest off-topic 0.540 (weather). Both still clear the 0.57 floor
  * with 0.064 and 0.030 headroom respectively; no threshold change needed.
  *
+ * Re-measured 2026-11-06 after REMOVING two files from this scope (niddk
+ * symptoms, psh threshold — REVIEW-FLAGS.md §17): weakest in-scope 0.634
+ * (sex), strongest off-topic 0.518 (tech; weather fell from 0.540 to 0.486
+ * once the PSH chunk it used to land on left the scope). Headroom 0.064 and
+ * 0.052 — the margin above the controls nearly doubled. Shrinking the scope
+ * to what a mid-assessment user should see also made it safer to retrieve on.
+ *
  * If a future edit merges the per-variable sections back together, this
  * margin collapses and the engine starts silently deflecting again; the
  * file's front-matter carries a warning to that effect.

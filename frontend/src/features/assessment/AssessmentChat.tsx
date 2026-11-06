@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  abandonScreening,
   askClarification,
   startScreening,
   submitAnswer,
@@ -8,23 +9,27 @@ import {
   type StepPayload,
 } from "../../lib/assessment-api";
 import { hasConsented } from "../../lib/consent";
+import { isQuestionShaped } from "../../lib/question-shape";
+import { useI18n } from "../../lib/i18n";
+import { redactPersonalDetails } from "../../lib/personal-details";
+import type { InvalidCode, ScreeningKey } from "../../lib/strings";
 import ConsentGate from "./ConsentGate";
 import ResultsScreen from "./ResultsScreen";
 import "./assessment.css";
 
 interface Turn {
   role: "user" | "bot";
+  /** English text; shown as-is unless one of the keys below translates it. */
   text: string;
   error?: boolean;
+  /** A screening question — rendered in the current language. */
+  stepKey?: ScreeningKey;
+  /** A rejected answer — the server's code, rendered in the current language. */
+  code?: InvalidCode;
+  /** Written by the AI Clarification Engine (English), labelled as AI. */
+  ai?: boolean;
 }
 
-// Free text that looks like a question is routed to the clarification
-// assistant instead of being submitted as an answer — same heuristic as the
-// capstone frontend (English, Tagalog, and Bisaya interrogatives).
-const QUESTION_SHAPE =
-  /\?\s*$|^(what|why|how|explain|meaning|define|which|does|do|is|are|ano|bakit|paano|alin|unsa|ngano|giunsa)\b/i;
-
-const EXPLAIN_CHIP = "Can you explain this question in simple words?";
 
 /**
  * Sentences in a screening prompt that tell the user HOW to enter an answer,
@@ -47,9 +52,11 @@ const NO_CLINICAL_TERM: Record<string, string> = {
 
 /**
  * What the "Explain this question" chip SENDS, as opposed to what it
- * displays. The chip text alone names no medical term, and the gate never
- * sees variableKey — that is only a retrieval hint — so the sent query must
- * carry the term itself. Hence quoting the current screening question.
+ * displays. The chip text alone names no medical term, so the sent query
+ * carries the term itself by quoting the current screening question. (The
+ * server now also shows the gate that question, keyed by variableKey, so
+ * free-typed follow-ups like "why does this matter?" resolve too — but the
+ * chip wording below was measured before that and is kept as-is.)
  *
  * The quote is stripped of input instructions first: the age prompt ends
  * "Please type your age in years (for example, 54)." and the engine read
@@ -72,8 +79,14 @@ function explainQuestionQuery(variableKey: string, prompt: string): string {
   return `What does this screening question mean: "${asked}"?`;
 }
 
+function promptTurn(step: StepPayload): Turn {
+  return { role: "bot", text: step.prompt, stepKey: step.key as ScreeningKey };
+}
+
 export default function AssessmentChat() {
   const navigate = useNavigate();
+  const { lang, t } = useI18n();
+  const a = t.assessment;
   const [consented, setConsented] = useState(hasConsented);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
   const [step, setStep] = useState<StepPayload | null>(null);
@@ -84,6 +97,15 @@ export default function AssessmentChat() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const startedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // The in-progress assessment, so it can be deleted if the participant
+  // leaves mid-screening (the server keeps nothing once a session ends).
+  const activeIdRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (activeIdRef.current) {
+      void abandonScreening(activeIdRef.current).catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -99,9 +121,10 @@ export default function AssessmentChat() {
     setTurns([]);
     try {
       const res = await startScreening();
+      activeIdRef.current = res.assessmentId;
       setAssessmentId(res.assessmentId);
       setStep(res.step);
-      setTurns([{ role: "bot", text: res.step.prompt }]);
+      setTurns([promptTurn(res.step)]);
     } catch (err) {
       setFatalError(
         err instanceof Error ? err.message : "Could not start the assessment.",
@@ -131,13 +154,15 @@ export default function AssessmentChat() {
     // screening flow at exactly the variable the user paused on.
     const currentStep = step;
     setBusy(true);
-    setTurns((t) => [...t, { role: "user", text: shown }]);
+    // The transcript shows the filtered text, matching what the engine
+    // receives (askClarification filters `sent`).
+    setTurns((t) => [...t, { role: "user", text: redactPersonalDetails(shown) }]);
     try {
       const res = await askClarification(sent, currentStep.key);
       setTurns((t) => [
         ...t,
-        { role: "bot", text: res.reply },
-        { role: "bot", text: currentStep.prompt },
+        { role: "bot", text: res.reply, ai: true },
+        promptTurn(currentStep),
       ]);
     } catch (err) {
       setTurns((t) => [
@@ -146,8 +171,8 @@ export default function AssessmentChat() {
           role: "bot",
           text:
             err instanceof Error
-              ? `Something went wrong: ${err.message}`
-              : "Something went wrong. Please try again.",
+              ? `${a.somethingWrong} (${err.message})`
+              : a.somethingWrong,
           error: true,
         },
       ]);
@@ -163,16 +188,22 @@ export default function AssessmentChat() {
     try {
       const res = await submitAnswer(assessmentId, value);
       if (!res.valid) {
-        setTurns((t) => [
-          ...t,
-          { role: "bot", text: res.message ?? "Please try that answer again." },
+        setTurns((prev) => [
+          ...prev,
+          {
+            role: "bot",
+            text: res.message ?? t.invalid(res.code ?? "yes_no"),
+            code: res.code,
+          },
         ]);
         if (res.step) setStep(res.step);
       } else if (res.completed && res.result) {
+        // The server deleted the assessment when it returned the result.
+        activeIdRef.current = null;
         setResult(res.result);
       } else if (res.step) {
         setStep(res.step);
-        setTurns((t) => [...t, { role: "bot", text: res.step!.prompt }]);
+        setTurns((t) => [...t, promptTurn(res.step!)]);
       }
     } catch (err) {
       setTurns((t) => [
@@ -181,8 +212,8 @@ export default function AssessmentChat() {
           role: "bot",
           text:
             err instanceof Error
-              ? `Something went wrong: ${err.message}`
-              : "Something went wrong. Please try again.",
+              ? `${a.somethingWrong} (${err.message})`
+              : a.somethingWrong,
           error: true,
         },
       ]);
@@ -195,11 +226,20 @@ export default function AssessmentChat() {
     const text = raw.trim();
     if (!text || busy) return;
     setInput("");
-    if (QUESTION_SHAPE.test(text)) {
+    // Free text that looks like a question or request goes to the
+    // clarification assistant instead of being submitted as an answer.
+    if (isQuestionShaped(text)) {
       void sendClarification(text);
     } else {
       void sendAnswer(text);
     }
+  }
+
+  /** What a bot turn shows, in the current language. */
+  function turnText(turn: Turn): string {
+    if (turn.stepKey) return t.questions[turn.stepKey];
+    if (turn.code && lang !== "en") return t.invalid(turn.code);
+    return turn.text;
   }
 
   function retake() {
@@ -230,12 +270,12 @@ export default function AssessmentChat() {
     return (
       <div className="assessment-page">
         <div className="assessment-panel" role="alert">
-          <span className="assessment-eyebrow">Risk assessment</span>
-          <h1>Assessment unavailable</h1>
+          <span className="assessment-eyebrow">{a.title}</span>
+          <h1>{a.unavailableTitle}</h1>
           <p>{fatalError}</p>
           <div className="assessment-actions">
             <button className="assessment-button assessment-button-primary" onClick={() => void begin()}>
-              Try again
+              {a.tryAgain}
             </button>
           </div>
         </div>
@@ -247,16 +287,17 @@ export default function AssessmentChat() {
     <div className="chat-page assessment-chat">
       <header className="assessment-chat-header">
         <div>
-          <span className="assessment-eyebrow">Kidney health screening</span>
-          <h1>Risk assessment</h1>
-          <p>Take your time. Answer one question at a time.</p>
+          <span className="assessment-eyebrow">{a.eyebrow}</span>
+          <h1>{a.title}</h1>
+          <p>{a.subtitle}</p>
         </div>
         {step && (
           <span className="assessment-step-label">
-            Question {step.index + 1} of {step.total}
+            {a.step(step.index + 1, step.total)}
           </span>
         )}
       </header>
+      <p className="assessment-notice" role="note">{a.notice}</p>
       {step && (
         <div
           className="assessment-progress"
@@ -281,13 +322,15 @@ export default function AssessmentChat() {
               "assessment-turn " +
               (turn.role === "user" ? "assessment-turn-user" : "assessment-turn-bot") +
               (turn.error ? " assessment-turn-error" : "") +
-              (turn.role === "bot" && i === turns.length - 1 && turn.text === step?.prompt
+              (turn.role === "bot" && i === turns.length - 1 && turn.stepKey === step?.key
                 ? " assessment-turn-current"
                 : "")
             }
           >
-            <span className="assessment-turn-label">{turn.role === "user" ? "You" : "BATO"}</span>
-            <span>{turn.text}</span>
+            <span className="assessment-turn-label">
+              {turn.role === "user" ? a.you : turn.ai ? a.batoAi : a.bato}
+            </span>
+            <span lang={turn.ai ? "en" : undefined}>{turnText(turn)}</span>
           </div>
         ))}
         {busy && (
@@ -308,7 +351,8 @@ export default function AssessmentChat() {
               className="assessment-choice"
               onClick={() => void sendAnswer(opt)}
             >
-              {opt}
+              {/* Translated label; the canonical English value is sent. */}
+              {t.options[opt] ?? opt}
             </button>
           ))}
           <button
@@ -316,12 +360,14 @@ export default function AssessmentChat() {
             className="assessment-explain"
             onClick={() =>
               void sendClarification(
-                EXPLAIN_CHIP,
+                a.explainChip,
+                // Always the ENGLISH prompt: the engine's gate keys on the
+                // English clinical term (see explainQuestionQuery).
                 explainQuestionQuery(step.key, step.prompt),
               )
             }
           >
-            Explain this question
+            {a.explainButton}
           </button>
         </div>
       )}
@@ -334,7 +380,7 @@ export default function AssessmentChat() {
         }}
       >
         <label htmlFor="assessment-answer">
-          {step?.inputType === "number" ? "Your answer" : "Type an answer or ask a question"}
+          {step?.inputType === "number" ? a.answerLabel : a.answerOrAskLabel}
         </label>
         <div className="assessment-composer-row">
           <textarea
@@ -350,15 +396,15 @@ export default function AssessmentChat() {
             }}
             placeholder={
               step?.inputType === "number"
-                ? "Type your answer (a number)…"
-                : "Type your answer, or ask about the question…"
+                ? a.numberPlaceholder
+                : a.textPlaceholder
             }
             rows={1}
             maxLength={1000}
             disabled={busy}
           />
           <button type="submit" disabled={busy || !input.trim()}>
-            Send
+            {a.send}
           </button>
         </div>
       </form>

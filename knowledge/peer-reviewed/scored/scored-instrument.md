@@ -74,8 +74,12 @@ raises the chance that getting checked is worthwhile.
 
 ## Female sex and kidney risk
 
-In the SCORED study population, women had a slightly higher chance of
-reduced kidney function.
+This screening question asks the sex you were assigned at birth. Sex is
+asked because, in the SCORED study population, women had a slightly higher
+chance of reduced kidney function than men (SCORED; Bang et al., 2007).
+
+Being a woman does not mean a person has kidney disease — it only adds
+slightly to the chance that getting checked is worthwhile.
 
 ## What a Screen Positive result means
 

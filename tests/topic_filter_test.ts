@@ -22,6 +22,12 @@ Deno.test("blocks diagnostic claims", () => {
     // it, so they must stay blocked even though other conjunctions are
     // exempt — this pins that distinction.
     "Because you have CKD, you should start dialysis soon.",
+    // The "know" exemption must not let the assistant claim the knowledge.
+    "I know you have diabetes.",
+    "We think you probably have kidney disease.",
+    "I can tell that you have hypertension.",
+    // "shows" stays blocked: it follows "your test" as easily as "a test".
+    "Your test shows you have diabetes.",
   ];
   for (const text of blocked) {
     const result = filterAssistantReply(text);
@@ -52,6 +58,13 @@ Deno.test("passes normal screening/awareness language", () => {
     "Once you have kidney disease, it usually does not go away.",
     "Unless you have kidney failure, dialysis is not normally needed.",
     "While you have CKD, your doctor will monitor your blood pressure.",
+    // Verbs of finding out — how a clarification explains the question.
+    // Regression: a valid "What is diabetes?" reply was blocked on
+    // "know you have diabetes" (2026-11-06).
+    "Most people usually know you have diabetes only after a blood test, so you would know you have diabetes because a doctor told you.",
+    "You may find out you have diabetes from a routine blood sugar test.",
+    "Many people only learn they have it later; you might learn that you have anemia from a blood test.",
+    "If a doctor said you have high blood pressure, that counts.",
   ];
   for (const text of allowed) {
     const result = filterAssistantReply(text);

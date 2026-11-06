@@ -549,3 +549,42 @@ a.source-chip:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Language switcher (English / Filipino / Bisaya) — header and consent. */
+.language-switcher {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.language-switcher button {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.language-switcher button[aria-pressed="true"] {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+/* Always-visible AI disclosure on the General CKD Chatbot (UIC-REC). */
+.chat-ai-notice {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--deflect-bg);
+  border: 1px solid var(--deflect-edge);
+  border-radius: 10px;
+}

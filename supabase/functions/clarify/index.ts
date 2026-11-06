@@ -37,7 +37,11 @@
 // a clarification can alter a recorded variable.
 //
 // Pipeline (mirrors general-chat, stricter thresholds):
-//   (1) input gate — scope + injection classification;
+//   (0) symptom / reading / self-assessment redirect — a fixed reply, no
+//       model call (clarify-redirect.ts);
+//   (1) input gate — scope + injection classification, reading the question
+//       in the light of the screening prompt the user is on, so "why does
+//       this matter?" resolves to that question's subject;
 //   (2)-(3) embed, pgvector top-K within screening_clarification ONLY;
 //   (4) rerank to top-N above the clarification threshold;
 //   (5) none pass ⇒ approved clarification deflection;
@@ -50,10 +54,21 @@
 // Every infrastructure failure degrades to the deflection with a server-side
 // log — never a raw 500, and never a stall mid-assessment.
 //
-// POST { question: string, variableKey?: string }
+// POST { question: string, variableKey?: string, participantCode?: string }
 //   → { reply, sources, deflected }
+//
+// participantCode (the researcher-set evaluation code) is read only by the
+// audit-log wrapper, never by this handler. It identifies an evaluation
+// session, not an assessment, so the guarantee above is unchanged.
 
-import { classifyQuery, type GateVerdict } from "../_shared/gate.ts";
+import {
+  classifyQuery,
+  type ConversationTurn,
+  type GateVerdict,
+  preScreenInjection,
+} from "../_shared/gate.ts";
+import { clarificationContext } from "../_shared/questions.ts";
+import { detectRedirect } from "../_shared/clarify-redirect.ts";
 import {
   embedForCache,
   embedQuery,
@@ -84,6 +99,8 @@ import {
   resolveCorsOrigin,
 } from "../_shared/supabase.ts";
 import type { RetrievalScope } from "../_shared/scopes.ts";
+import { withChatAudit } from "../_shared/audit-log.ts";
+import { redactPersonalDetails } from "../_shared/personal-details.ts";
 
 /** Hard-locked. Never taken from the request — the client cannot widen it. */
 const SCOPE: RetrievalScope = "screening_clarification";
@@ -158,7 +175,13 @@ function sanitizeVariableKey(raw: unknown): string {
 }
 
 Deno.serve(async (req) => {
-  const response = await handleRequest(req);
+  // Every reply is recorded in the safety audit log (see audit-log.ts).
+  const response = await withChatAudit(req, {
+    supabase: createServiceClient,
+    scope: SCOPE,
+    questionField: "question",
+    serviceErrorMessage: CLARIFICATION_SERVICE_ERROR_MESSAGE,
+  }, handleRequest);
   response.headers.set("Access-Control-Allow-Origin", resolveCorsOrigin(req));
   return response;
 });
@@ -178,14 +201,49 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
-  const question = typeof body.question === "string" ? body.question.trim() : "";
-  if (!question) {
+  const rawQuestion = typeof body.question === "string" ? body.question.trim() : "";
+  if (!rawQuestion) {
     return jsonResponse({ error: "question is required" }, 400);
   }
-  if (question.length > MAX_QUESTION_LENGTH) {
+  if (rawQuestion.length > MAX_QUESTION_LENGTH) {
     return jsonResponse({ error: "Question is too long" }, 400);
   }
+  // Personal details are removed before the text reaches the gate, the
+  // answer cache, Gemini, Groq or Cohere (see personal-details.ts).
+  const rawText = redactPersonalDetails(rawQuestion);
   const variableKey = sanitizeVariableKey(body.variableKey);
+
+  // The screening question the user is on, as a one-turn conversation, so a
+  // follow-up with no subject of its own ("why does this matter?") is judged
+  // and answered about that question. Without it the gate saw the bare text,
+  // found no term, and deflected. Server-owned text selected by an exact key
+  // match — see clarificationContext() — so this is not client history.
+  // (0) Symptom / reading / "do I have it?" questions get a fixed reply and
+  // never reach retrieval or generation — see clarify-redirect.ts for why
+  // answering them would conflict with how SCORED is designed to be
+  // answered. Injection attempts skip this and take the normal path, so
+  // they still meet the gate's standard refusal.
+  const redirect = preScreenInjection(rawText)
+    ? null
+    : detectRedirect(rawText, body.variableKey);
+  if (redirect) {
+    console.info(
+      `clarify: redirected (${redirect.reason}, ${redirect.condition ?? "general"}) — no retrieval or generation`,
+    );
+    const redirected: ClarifyResponse = {
+      reply: redirect.reply,
+      sources: [],
+      // Content was withheld on purpose, which is what the audit log's
+      // "deflected" outcome records.
+      deflected: true,
+    };
+    return jsonResponse(redirected);
+  }
+
+  const context = clarificationContext(body.variableKey);
+  const history: ConversationTurn[] = context
+    ? [{ role: "assistant", text: context }]
+    : [];
 
   try {
     const supabase = createServiceClient();
@@ -198,7 +256,7 @@ async function handleRequest(req: Request): Promise<Response> {
       // Scope-matched gate. The general-education prompt rejects "other
       // diseases", which is most of the nine SCORED variables — see
       // CLARIFY_GATE_SYSTEM_PROMPT in gate.ts.
-      verdict = await classifyQuery(question, SCOPE);
+      verdict = await classifyQuery(rawText, SCOPE, history);
     } catch (err) {
       console.warn("clarify: gate threw unexpectedly — failing open:", err);
       verdict = {
@@ -208,9 +266,51 @@ async function handleRequest(req: Request): Promise<Response> {
       };
     }
     if (!verdict.in_scope || verdict.injection_detected) {
-      console.warn("clarify: gate blocked question:", verdict.reason);
+      // Flags only: verdict.reason is model-written and can paraphrase the
+      // participant's question.
+      console.warn(
+        `clarify: gate blocked question (in_scope=${verdict.in_scope}, injection=${verdict.injection_detected})`,
+      );
       return deflect();
     }
+
+    // The gate's standalone rewrite ("Why does diabetes matter for kidney
+    // health?") when it produced a safe one, else the text as sent. It is
+    // what retrieval embeds, the cache keys on, and the generator answers.
+    //
+    // The gate prompt asks the rewrite to name kidney health, but the model
+    // omits it about one time in three, and those rewrites ("Why is heart
+    // failure asked?") score 0.41-0.56 against the 0.45 threshold. So the
+    // framing is added here when missing — and ONLY to a rewrite, which
+    // exists only when a gate provider actually ran and judged the message
+    // in scope. A fail-open verdict carries no rewrite, so an unchecked
+    // message never gains kidney wording.
+    const rewrite = verdict.standalone_question;
+    const question = rewrite === undefined
+      ? rawText
+      : /\b(?:kidneys?|renal)\b/i.test(rewrite)
+      ? rewrite
+      : `${rewrite} (in a kidney health screening)`;
+
+    // What the reranker scores and the generator answers: the question plus
+    // the screening question it was asked on.
+    //
+    // "Why does sex matter?" never says matter FOR WHAT, and Cohere scored
+    // the female-sex passage at 0.08 against the 0.45 threshold — deflecting
+    // a question the "Explain this question" chip answers fine, because the
+    // chip quotes the prompt. Two fixes, measured 2026-11-06 across all nine
+    // variables (REVIEW-FLAGS.md §18):
+    //   - the clarify gate prompt makes the rewrite name the topic and
+    //     "kidney health" — for in-scope messages only, so an off-topic
+    //     message never gains kidney wording that would lift its score;
+    //   - this anchor appends the screening prompt. `context` is server-owned
+    //     text selected by exact key match.
+    // The anchor deliberately does NOT add the words "kidney health" itself:
+    // that variant also lifted off-topic controls to within 0.006 of the
+    // threshold.
+    const anchored = context
+      ? `${question}\n(Asked while answering the screening question: "${context}")`
+      : question;
 
     // (2)-(3) Retrieve within the clarification scope ONLY. The variable
     // hint joins the embedding query but never the prompt.
@@ -289,7 +389,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
     // (4) Rerank at the clarification threshold — stricter than general
     // education by design (see scopes.ts).
-    const reranked = await rerankChunks(question, candidates, SCOPE);
+    const reranked = await rerankChunks(anchored, candidates, SCOPE);
     if (reranked.length === 0) {
       console.warn(
         "clarify: no chunks cleared the clarification threshold — deflecting",
@@ -304,7 +404,7 @@ async function handleRequest(req: Request): Promise<Response> {
     try {
       draft = await generateReply({
         systemPrompt: CLARIFICATION_SYSTEM_PROMPT,
-        message: buildGroundedUserMessage(question, reranked),
+        message: buildGroundedUserMessage(anchored, reranked),
         // Deterministic: this is a definition lookup, not creative writing,
         // and sampling variance here showed up as the engine refusing a
         // valid screening question roughly one run in four.

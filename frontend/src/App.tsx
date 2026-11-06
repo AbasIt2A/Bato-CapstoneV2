@@ -4,10 +4,12 @@ import Home from "./pages/Home";
 import GeneralChat from "./pages/GeneralChat";
 import AssessmentChat from "./features/assessment/AssessmentChat";
 import EvaluationForm from "./features/evaluation/EvaluationForm";
+import { LanguageSwitcher, useI18n } from "./lib/i18n";
 
 const FacilityLocator = lazy(() => import("./features/locator/FacilityLocator"));
 
 export default function App() {
+  const { t } = useI18n();
   return (
     <div className="app">
       <header className="site-header">
@@ -23,11 +25,12 @@ export default function App() {
           </span>
         </Link>
         <nav className="site-nav" aria-label="Main navigation">
-          <NavLink to="/assessment">Assessment</NavLink>
-          <NavLink to="/chat">Kidney chat</NavLink>
-          <NavLink to="/facilities">Find labs</NavLink>
-          <NavLink to="/evaluate">Feedback</NavLink>
+          <NavLink to="/assessment">{t.nav.assessment}</NavLink>
+          <NavLink to="/chat">{t.nav.chat}</NavLink>
+          <NavLink to="/facilities">{t.nav.labs}</NavLink>
+          <NavLink to="/evaluate">{t.nav.feedback}</NavLink>
         </nav>
+        <LanguageSwitcher />
       </header>
 
       <main className="site-main">
@@ -42,9 +45,7 @@ export default function App() {
       </main>
 
       <footer className="disclaimer">
-        <strong>For awareness, not diagnosis.</strong> BATO is a screening tool, not a medical device.
-        Results and chat responses are not medical advice. Consult a health professional
-        about your health. SCORED is used under license from AstraZeneca Philippines (PH-6850).
+        <strong>{t.footer.lead}</strong> {t.footer.body}
       </footer>
     </div>
   );
