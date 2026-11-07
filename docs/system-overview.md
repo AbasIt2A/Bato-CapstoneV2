@@ -33,7 +33,7 @@ surfaces plus an evaluation survey:
 2. **General Kidney Health Chatbot** — free-form Q&A about kidney health, answered only from a
    curated corpus via hardened retrieval-augmented generation, deflecting
    anything off-topic.
-3. **Evaluation** — SUS / TAM / TiMT instruments captured for the study.
+3. **Evaluation** — SUS / TAM / TiMT, administered on Google Forms; the app only links to the form (`VITE_FEEDBACK_FORM_URL`).
 
 The footer disclaimer is part of the product, not decoration: BATO is a
 screening and awareness tool, not a medical device, and the SCORED instrument
@@ -93,7 +93,7 @@ Vite + React 19 + `react-router-dom` 7, TypeScript, no UI framework
 | [features/assessment/ResultsScreen.tsx](../frontend/src/features/assessment/ResultsScreen.tsx) | — | Score + binary classification |
 | [pages/GeneralChat.tsx](../frontend/src/pages/GeneralChat.tsx) | `/chat` | Q&A with source chips; sends the last 3 completed exchanges so follow-ups resolve |
 | [lib/source-links.ts](../frontend/src/lib/source-links.ts) | — | Public page per registered source, so each chip links out; a second mirror of the register, held in step by [source_links_test.ts](../tests/source_links_test.ts) |
-| [features/evaluation/EvaluationForm.tsx](../frontend/src/features/evaluation/EvaluationForm.tsx) | `/evaluate` | SUS / TAM / TiMT |
+| [features/evaluation/EvaluationForm.tsx](../frontend/src/features/evaluation/EvaluationForm.tsx) | `/evaluate` | Link to the SUS / TAM / TiMT Google Form |
 
 **Identity.** Every visitor gets an anonymous Supabase Auth session
 ([supabase-client.ts](../frontend/src/lib/supabase-client.ts)); the JWT is
@@ -107,11 +107,9 @@ never an `assessmentId`. The client, not the server, remembers which step the
 user was on and re-displays it afterwards. That asymmetry is the structural
 guarantee described in §5.3.
 
-**Note:** [instruments.ts](../frontend/src/features/evaluation/instruments.ts)
-carries a ⚠️ CONFIRM flag — the TAM and TiMT item wordings are standard
-adaptations drafted for BATO and must be aligned verbatim with the
-manuscript-approved instruments before the evaluation study runs. SUS is the
-standard 10-item Brooke (1996) scale.
+**Note:** since 2026-11-07 the SUS / TAM / TiMT surveys run on Google Forms.
+The in-app survey (`instruments.ts`, `evaluation-api.ts`) was removed; the
+`evaluation_responses` table remains but nothing writes to it.
 
 ---
 

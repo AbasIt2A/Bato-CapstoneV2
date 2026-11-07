@@ -131,6 +131,15 @@ export interface Strings {
     replying: string;
     somethingWrong: string;
   };
+  feedback: {
+    eyebrow: string;
+    title: string;
+    body: string;
+    button: string;
+    newTab: string;
+    unavailable: string;
+    thanks: string;
+  };
 }
 
 const en: Strings = {
@@ -152,7 +161,7 @@ const en: Strings = {
       "Your screening answers and result are deleted as soon as your result is shown. BATO does not keep them.",
       "Questions you type to BATO's chatbots, and BATO's replies, are kept without your name so the research team can check that the information was accurate. Only the research team can see them.",
       "To answer you, the questions you type are sent to online AI services (Google Gemini, Groq and Cohere) through BATO's host, Supabase. These companies handle the questions under their own terms. Please do not type your name, contact details, or anything else that could identify you.",
-      "Survey answers you choose to submit are kept for the study's evaluation.",
+      "The feedback surveys are on Google Forms, so Google receives the answers you choose to submit. The research team keeps them for the study's evaluation.",
     ],
     voluntary: "Taking part is voluntary. You may take a break or stop at any time without any penalty. You may ask the researchers questions at any time.",
     checkAge: "I am 20 years old or older.",
@@ -235,6 +244,15 @@ const en: Strings = {
     replying: "BATO is replying",
     somethingWrong: "Something went wrong. Please try again.",
   },
+  feedback: {
+    eyebrow: "SHARE YOUR EXPERIENCE",
+    title: "Tell us what you think",
+    body: "Finished the screening and the Kidney chat? Please answer our short feedback form. It has three short surveys and takes about 10 minutes.",
+    button: "Open the feedback form",
+    newTab: "Opens Google Forms in a new tab.",
+    unavailable: "The feedback form is not ready yet. Please ask the researcher.",
+    thanks: "Thank you for helping our research!",
+  },
 };
 
 const fil: Strings = {
@@ -256,7 +274,7 @@ const fil: Strings = {
       "Binubura ang iyong mga sagot sa screening at ang resulta sa sandaling maipakita ang iyong resulta. Hindi ito iniimbak ng BATO.",
       "Ang mga tanong na isinusulat mo sa mga chatbot ng BATO, at ang mga sagot ng BATO, ay iniimbak nang walang pangalan mo upang matiyak ng research team na tama ang impormasyon. Ang research team lamang ang makakakita nito.",
       "Para masagot ka, ipinapadala ang mga tanong na isinusulat mo sa mga online AI service (Google Gemini, Groq, at Cohere) sa pamamagitan ng host ng BATO, ang Supabase. Hinahawakan ng mga kompanyang ito ang mga tanong ayon sa sarili nilang mga patakaran. Huwag isulat ang iyong pangalan, contact details, o anumang impormasyong maaaring makapagpakilala sa iyo.",
-      "Ang mga sagot sa survey na pipiliin mong isumite ay iniimbak para sa ebalwasyon ng pag-aaral.",
+      "Nasa Google Forms ang mga feedback survey, kaya natatanggap ng Google ang mga sagot na pipiliin mong isumite. Iniimbak ito ng research team para sa ebalwasyon ng pag-aaral.",
     ],
     voluntary: "Kusang-loob ang pakikilahok. Maaari kang magpahinga o tumigil anumang oras nang walang anumang parusa. Maaari kang magtanong sa mga mananaliksik anumang oras.",
     checkAge: "Ako ay 20 taong gulang o higit pa.",
@@ -347,6 +365,15 @@ const fil: Strings = {
     replying: "Sumasagot ang BATO",
     somethingWrong: "May nangyaring mali. Pakisubukan muli.",
   },
+  feedback: {
+    eyebrow: "IBAHAGI ANG IYONG KARANASAN",
+    title: "Ano ang masasabi mo?",
+    body: "Natapos mo na ba ang screening at ang Kidney chat? Pakisagutan ang aming maikling feedback form. Mayroon itong tatlong maikling survey at aabutin ng mga 10 minuto.",
+    button: "Buksan ang feedback form",
+    newTab: "Magbubukas ang Google Forms sa bagong tab.",
+    unavailable: "Hindi pa handa ang feedback form. Pakitanong sa researcher.",
+    thanks: "Salamat sa pagtulong sa aming pag-aaral!",
+  },
 };
 
 const ceb: Strings = {
@@ -368,7 +395,7 @@ const ceb: Strings = {
       "Papason ang imong mga tubag sa screening ug ang resulta dayon human ipakita ang imong resulta. Dili kini tipigan sa BATO.",
       "Ang mga pangutana nga imong isulat sa mga chatbot sa BATO, ug ang mga tubag sa BATO, tipigan nga walay imong ngalan aron masusi sa research team nga sakto ang impormasyon. Ang research team lang ang makakita niini.",
       "Aron ka matubag, ipadala ang mga pangutana nga imong isulat ngadto sa mga online AI service (Google Gemini, Groq, ug Cohere) pinaagi sa host sa BATO, ang Supabase. Kini nga mga kompanya modumala sa mga pangutana sumala sa ilang kaugalingong mga lagda. Ayaw isulat ang imong ngalan, contact details, o bisan unsang impormasyon nga makaila kanimo.",
-      "Ang mga tubag sa survey nga imong pilion nga isumite tipigan para sa ebalwasyon sa pagtuon.",
+      "Ang mga feedback survey anaa sa Google Forms, busa madawat sa Google ang mga tubag nga imong pilion nga isumite. Tipigan kini sa research team alang sa ebalwasyon sa pagtuon.",
     ],
     voluntary: "Boluntaryo ang pag-apil. Mahimo kang mopahulay o mohunong bisan kanus-a nga walay bisan unsang silot. Mahimo kang mangutana sa mga tigdukiduki bisan kanus-a.",
     checkAge: "Ako 20 anyos o labaw pa.",
@@ -458,6 +485,15 @@ const ceb: Strings = {
     sources: "Mga source",
     replying: "Nagtubag ang BATO",
     somethingWrong: "Naay sayop nga nahitabo. Palihug sulayi pag-usab.",
+  },
+  feedback: {
+    eyebrow: "SHARE YOUR EXPERIENCE",
+    title: "Tell us what you think",
+    body: "Tapos na ba nimo ang screening ug ang Kidney chat? Palihug tubaga ang among mubo nga feedback form. Kini adunay tulo ka mubo nga survey ug mokabat og mga 10 minutos.",
+    button: "Ablihi ang feedback form",
+    newTab: "Moabli sa Google Forms sa bag-ong tab.",
+    unavailable: "Wala pa maandam ang feedback form. Palihug pangutan-a ang researcher.",
+    thanks: "Salamat sa pagtabang sa among pagtuon!",
   },
 };
 
