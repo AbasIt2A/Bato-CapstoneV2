@@ -256,7 +256,23 @@ export async function generateReply(options: {
       );
     }
 
-    const response = await request(isFinalAttempt);
+    // A timeout or network error makes fetch THROW rather than return a
+    // status, and that throw used to escape the loop — so one slow response
+    // skipped the remaining attempts and the user got the service-error
+    // reply (observed 2026-11-07 on clarify: "generation failed:
+    // TimeoutError"). Treat it as a failed attempt like a 503; the retry
+    // budget above still stops a model that is stalled rather than flaky.
+    let response: Response;
+    try {
+      response = await request(isFinalAttempt);
+    } catch (err) {
+      fail(
+        err instanceof Error && err.name === "TimeoutError"
+          ? `timed out after ${GENERATION_TIMEOUT_MS}ms`
+          : `request failed (${err instanceof Error ? err.name : "unknown"})`,
+      );
+      continue;
+    }
 
     if (response.status === 429 || response.status >= 500) {
       fail(`Gemini API error ${response.status}`);
