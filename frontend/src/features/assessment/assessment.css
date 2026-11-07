@@ -294,35 +294,106 @@
   font-weight: 550;
 }
 
-.assessment-composer {
+/* Answer box. Every selector starts with ".composer.assessment-composer"
+   because index.css loads AFTER this file and its generic ".composer" rules
+   would otherwise win the tie (they had collapsed the box to its content
+   width and given the text area its own border). */
+.composer.assessment-composer {
   display: block;
-  padding: 14px 0 12px;
+  padding: 18px 0 14px;
+  border-top: none;
   background: var(--bg);
 }
 
-.assessment-composer label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--ink);
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.assessment-composer-row {
+/* One rounded field holding the text and a round send button. */
+.composer.assessment-composer .assessment-composer-row {
   display: flex;
-  gap: 10px;
   align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 8px 8px 22px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: 0 4px 18px rgba(20, 67, 66, 0.08);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.assessment-composer textarea {
-  min-height: 48px;
-  border-radius: 10px;
-  font-size: 1rem;
+.composer.assessment-composer .assessment-composer-row:focus-within {
+  border-color: var(--accent-edge);
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 4px 18px rgba(20, 67, 66, 0.08);
 }
 
-.assessment-composer button {
-  min-height: 48px;
-  border-radius: 10px;
+/* Grows with its text (height set in AssessmentChat.tsx) up to about eight
+   lines. The scrollbar is switched on in the same place, and only once the
+   text is taller than that. */
+.composer.assessment-composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(240px, 40vh);
+  margin: 0;
+  padding: 10px 8px 10px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 1.05rem;
+  line-height: 1.45;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-edge) transparent;
+}
+
+.composer.assessment-composer textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.composer.assessment-composer textarea::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--accent-edge);
+}
+
+.composer.assessment-composer textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.composer.assessment-composer textarea:focus {
+  outline: none;
+}
+
+.composer.assessment-composer textarea::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+
+.composer.assessment-composer button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  transition: background 0.15s, opacity 0.15s, transform 0.1s;
+}
+
+.composer.assessment-composer button:hover:not(:disabled) {
+  background: #094f4d;
+}
+
+.composer.assessment-composer button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.composer.assessment-composer button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.composer.assessment-composer button:disabled {
+  opacity: 0.35;
 }
 
 .assessment-result-summary {

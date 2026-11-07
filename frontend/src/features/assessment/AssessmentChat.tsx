@@ -26,7 +26,7 @@ interface Turn {
   stepKey?: ScreeningKey;
   /** A rejected answer — the server's code, rendered in the current language. */
   code?: InvalidCode;
-  /** Written by the AI Clarification Engine (English), labelled as AI. */
+  /** Written by the AI Clarification Engine (English). Not labelled in the UI. */
   ai?: boolean;
 }
 
@@ -97,6 +97,20 @@ export default function AssessmentChat() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const startedRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow the input with its text, like a chat app. Past the CSS max-height
+  // it stops growing and only THEN shows a scrollbar — a short answer never
+  // gets one.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const max = parseFloat(getComputedStyle(el).maxHeight) || Infinity;
+    const needed = el.scrollHeight;
+    el.style.height = `${Math.min(needed, max)}px`;
+    el.style.overflowY = needed > max ? "auto" : "hidden";
+  }, [input]);
   // The in-progress assessment, so it can be deleted if the participant
   // leaves mid-screening (the server keeps nothing once a session ends).
   const activeIdRef = useRef<string | null>(null);
@@ -328,7 +342,7 @@ export default function AssessmentChat() {
             }
           >
             <span className="assessment-turn-label">
-              {turn.role === "user" ? a.you : turn.ai ? a.batoAi : a.bato}
+              {turn.role === "user" ? a.you : a.bato}
             </span>
             <span lang={turn.ai ? "en" : undefined}>{turnText(turn)}</span>
           </div>
@@ -379,11 +393,12 @@ export default function AssessmentChat() {
           send(input);
         }}
       >
-        <label htmlFor="assessment-answer">
+        <label className="sr-only" htmlFor="assessment-answer">
           {step?.inputType === "number" ? a.answerLabel : a.answerOrAskLabel}
         </label>
         <div className="assessment-composer-row">
           <textarea
+            ref={inputRef}
             id="assessment-answer"
             value={input}
             inputMode={step?.inputType === "number" ? "numeric" : "text"}
@@ -403,8 +418,22 @@ export default function AssessmentChat() {
             maxLength={1000}
             disabled={busy}
           />
-          <button type="submit" disabled={busy || !input.trim()}>
-            {a.send}
+          <button
+            type="submit"
+            aria-label={a.send}
+            title={a.send}
+            disabled={busy || !input.trim()}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
       </form>

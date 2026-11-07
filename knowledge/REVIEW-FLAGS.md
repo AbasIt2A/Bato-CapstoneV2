@@ -1329,3 +1329,119 @@ rate the reranker fails and the pipeline degrades to cosine ordering
 (`fallbackSimilarity`), where the variable hint alone let two off-topic
 controls through when the gate was skipped. The gate still blocks those in
 production, but concurrent evaluation sessions will hit this limit.
+
+---
+
+## 19. Symptoms of the screening conditions in the Kidney chat — NEW CONTENT, VERIFY (2026-11-07)
+
+**Why.** §17's screening redirect tells an unsure participant: "You can ask
+about anemia symptoms in the Kidney chat after you finish." The Kidney chat
+then refused that exact question — its gate excludes "other diseases with no
+kidney connection", and the corpus had no symptom lists for the screening
+conditions anyway. The redirect was promising something the system could
+not do.
+
+**New file.** `knowledge/official-health-body/cdc/signs-of-screening-conditions.md`,
+**`general_education` only** (it must never enter `screening_clarification`;
+see §17). One H2 per condition. Every list restates an official page read on
+2026-11-07, cited inline:
+
+| Section | Source page |
+|---|---|
+| Anemia | NIDDK, "Anemia in Chronic Kidney Disease" (reviewed Sept 2020) |
+| High blood pressure | CDC, "About High Blood Pressure" (updated Oct 2026) |
+| Diabetes | CDC, "Symptoms of Diabetes" (May 2024) |
+| Heart attack | CDC, "About Heart Attack Symptoms, Risk, and Recovery" (Oct 2024) |
+| Stroke | CDC, "Signs and Symptoms of Stroke" (May 2026) |
+| Heart failure | CDC, "About Heart Failure" (May 2024) |
+| Peripheral vascular disease | CDC, "About Peripheral Arterial Disease (PAD)" (May 2024) |
+| Protein in the urine | NKF, "Albuminuria" (July 2023) |
+
+Editorial choices to confirm:
+- The US pages say "call 911"; the file says "needs emergency care right
+  away" instead, so no US-specific instruction reaches a Filipino user.
+- The CDC high-blood-pressure emergency is defined by readings above 180/120;
+  the file does not quote the numbers (no threshold to self-apply).
+- "These signs have many other causes … only a doctor and a test can tell"
+  closes the anemia, diabetes, heart failure and PVD sections. That framing
+  is ours, not the sources'.
+- PVD is presented through PAD, which is what the CDC page covers.
+
+**Scope change.** The general gate prompt and `GENERAL_CHAT_SYSTEM_PROMPT`
+now admit the eight screening conditions as kidney risk factors, including
+their signs, even when the question does not mention the kidneys. Other
+diseases stay out of scope.
+
+**Measured** (live gate → retrieval → Cohere, general threshold 0.30):
+symptom questions for all eight conditions answered (0.735–0.899), each
+from its own section; dengue, flu, cold, depression and COVID controls were
+all blocked at the gate. The gate needed explicit examples — it initially
+blocked diabetes, heart attack, stroke and heart failure — and was then
+consistent across three repeats per phrasing.
+
+---
+
+## 20. Kidney medicines — NEW CONTENT, VERIFY (2026-11-07)
+
+**Why.** Edge-case testing: "What dosage of losartan should I take to protect
+my kidneys?" and "My doctor prescribed medication, but I feel better now.
+Can I discontinue it?" both deflected — the gate admitted them, but no chunk
+cleared rerank. The corpus covered only pain relievers and antibiotics
+(`nkf/kidney-medicine-safety.md`, §16).
+
+**New file.** `knowledge/official-health-body/nkf/kidney-medicines.md`,
+`general_education` only, one H2 per topic. **It contains no doses,
+frequencies or eGFR cut-offs**, even where the source pages list them.
+
+| Section | Source |
+|---|---|
+| Stopping or changing a prescribed medicine | NKF (ACE/ARB and statin pages), NIDDK "Managing CKD", CDC |
+| How medicine doses are decided | NKF "Safe Medicine Use", NIDDK "Managing CKD" |
+| ACE inhibitors and ARBs (losartan…) | NKF "ACE & ARBs"; NIDDK "Managing CKD" |
+| SGLT2 inhibitors | NKF "SGLT2 inhibitors" |
+| Finerenone / potassium | NKF "Safe Medicine Use" |
+| Diuretics | NIDDK "Managing CKD"; NKF "Safe Medicine Use" |
+| Diabetes medicines | NKF "Safe Medicine Use" |
+| Statins | NKF "Statins" |
+| Anemia medicines (iron, ESA) | NIDDK "Anemia in CKD" |
+| Herbal supplements | NKF "Herbal Supplements and Kidney Disease" |
+| Heartburn medicines, antacids, bowel preps | NKF "Safe Medicine Use" |
+| Sick days | NIDDK "Keeping Kidneys Safe" |
+
+**Verification needed — read this first.** The NIDDK pages were read in
+full. For the **NKF pages, the fetch tool returned a faithful summary of the
+body rather than verbatim text**, so every NKF-cited sentence must be checked
+against the live page before the evaluation relies on it. Items to look at:
+
+- "Do not stop… without talking with your health care team first" is quoted
+  from the NKF ACE/ARB and statin pages; the opening section applies it to
+  prescribed medicines in general.
+- "Feeling better does not always mean a medicine is no longer needed… so
+  feeling well is not a reliable sign that it is under control" is OUR
+  inference from the CDC fact that high blood pressure usually has no
+  symptoms. So is "Do not change diabetes medicines on your own."
+- The statin sentence "most adults over 50 who are not on dialysis" restates
+  NKF's summary of guideline recommendations.
+- ACE/ARB angioedema: the page says "call 911"; the file says "needs
+  emergency care right away".
+- No NKF page was found for diuretics, finerenone, phosphate binders,
+  potassium binders, or laxatives. Phosphate and potassium binders are NOT
+  covered; questions about them will deflect.
+
+**Prompt changes.** `GENERAL_CHAT_SYSTEM_PROMPT` gains a "MEDICINES: ANSWER,
+BUT NEVER PRESCRIBE" section: answer medicine questions, never give a dose
+(even if a chunk contains one), never tell the user to start, stop or change
+a medicine, and for "can I stop it?" say not without the prescriber. The
+general gate admits medicine questions, including stopping and dosing a
+prescribed medicine, even without the word "kidney".
+
+**Status — APPROVED 2026-11-07.** The adviser approved §20 (including the
+NKF summary-derived sentences and the two inferences listed above). The
+dosing paragraph gained one sentence before approval ("There is no single
+safe amount of a medicine that fits everyone… How many milligrams of a
+medicine such as lisinopril, losartan, or metformin is safe depends on the
+person"); ingested 2026-11-07 (191 chunks). Verified end to end (live gate →
+retrieval → rerank → generation → diagnostic filter): "Can I discontinue
+it?", "How many mg of lisinopril is safe for CKD?" and the losartan dose
+question are all answered, with no dose figures and no instruction to stop
+or change a medicine.

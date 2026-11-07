@@ -10,6 +10,7 @@ import {
 import { linkHost, sourceReference } from "../lib/source-links";
 import { hasConsented } from "../lib/consent";
 import { redactPersonalDetails } from "../lib/personal-details";
+import { splitAdvice } from "../lib/advice";
 import { useI18n } from "../lib/i18n";
 import ConsentGate from "../features/assessment/ConsentGate";
 import "../features/assessment/assessment.css";
@@ -232,8 +233,16 @@ export default function GeneralChat() {
                 (turn.error ? " error" : "")
               }
             >
-              <span className="message-label">{c.batoAi}</span>
-              <div className="bot-text" lang="en">{turn.text}</div>
+              <span className="message-label">{c.bato}</span>
+              <div className="bot-text" lang="en">
+                {turn.deflected || turn.error
+                  ? turn.text
+                  : splitAdvice(turn.text).map((part, j) =>
+                    part.advice
+                      ? <strong key={j} className="bot-advice">{part.text}</strong>
+                      : <span key={j}>{part.text}</span>
+                  )}
+              </div>
               {turn.sources.length > 0 && (
                 <div className="sources">
                   <span className="sources-label">{c.sources}</span>

@@ -30,7 +30,8 @@ const DIAGNOSTIC_PATTERNS: RegExp[] = [
   // Deliberately NOT exempted: "because"/"since" ("because you have CKD…"),
   // which assert the diagnosis as established fact rather than supposing it;
   // nor "shows"/"means", which follow "your test" or "your result" as easily
-  // as "a test" and would then state a diagnosis.
+  // as "a test" and would then state a diagnosis. (The General CKD Chatbot
+  // alone may opt in to a NEGATED "mean" — see `allowNegatedMean` below.)
   /(?<!\b(?:told|tells?|telling|asked|asks|asking|if|whether|when|whenever|once|unless|while|know|knows|known|knew|learn|learns|learned|learnt|find\s+out|finds\s+out|found\s+out|say|says|said)\s+(?:you\s+)?(?:that\s+)?)\byou\s+(almost\s+certainly\s+|probably\s+|likely\s+|definitely\s+|clearly\s+)?(have|don'?t\s+have|do\s+not\s+have|are\s+suffering\s+from)\s+(?:a\s+)?(chronic\s+kidney\s+disease|ckd|kidney\s+disease|kidney\s+failure|kidney\s+stones?|renal\s+(disease|failure)|diabetes|hypertension|anemia|heart\s+failure)\b/i,
   /\b(i|we)\s+(can\s+)?diagnos\w+\s+you\b/i,
   // The assistant itself claiming to know — the one reading of the "know"
@@ -55,9 +56,38 @@ export const SAFE_FALLBACK_REPLY =
   "awareness tool, not a diagnostic one. For questions about your own " +
   "health, please talk to a doctor or your nearest health center.";
 
-export function filterAssistantReply(reply: string): FilterResult {
+/**
+ * "does not mean you", "doesn't necessarily mean that you", "never means
+ * you" — the "you" that a negated "mean" introduces.
+ */
+const NEGATED_MEAN_YOU =
+  /(?:\bnot|n['’]t|\bnever)\s+(?:necessarily\s+|always\s+|automatically\s+)?means?\s+(?:that\s+)?you\b/gi;
+
+export interface FilterOptions {
+  /**
+   * GENERAL CKD CHATBOT ONLY. Lets "this does not mean you have kidney
+   * disease" through — the safe answer to "I have diabetes, do I have CKD?",
+   * which the strict filter turned into a refusal (2026-11-07). An
+   * un-negated "this means you have CKD" is still blocked.
+   *
+   * The Clarification Engine must NOT set this. Mid-screening, even a
+   * negated statement about whether the user has a condition is a judgment
+   * on a SCORED item and could move an unsure answer; that engine explains
+   * what a question means and nothing more (REVIEW-FLAGS.md §17).
+   */
+  allowNegatedMean?: boolean;
+}
+
+export function filterAssistantReply(
+  reply: string,
+  options: FilterOptions = {},
+): FilterResult {
+  // Checked text only: the user still receives `reply` unchanged.
+  const checked = options.allowNegatedMean
+    ? reply.replace(NEGATED_MEAN_YOU, (m) => m.replace(/you$/i, "a person"))
+    : reply;
   for (const pattern of DIAGNOSTIC_PATTERNS) {
-    const match = reply.match(pattern);
+    const match = checked.match(pattern);
     if (match) {
       return {
         ok: false,

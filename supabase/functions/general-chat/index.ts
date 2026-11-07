@@ -127,9 +127,9 @@ interface ChatResponse {
   deflected: boolean;
 }
 
-function deflect(): Response {
+function deflect(reply: string = DEFLECTION_MESSAGE): Response {
   const body: ChatResponse = {
-    reply: DEFLECTION_MESSAGE,
+    reply,
     sources: [],
     deflected: true,
   };
@@ -279,7 +279,7 @@ async function handleRequest(req: Request): Promise<Response> {
       if (!alternate || splitSourceFooter(alternate).hasFooter) {
         return serveCached(cached);
       }
-      const filtered = filterAssistantReply(alternate);
+      const filtered = filterAssistantReply(alternate, { allowNegatedMean: true });
       const guard = checkDraftAnswer(
         alternate,
         REWORD_SYSTEM_PROMPT,
@@ -439,10 +439,14 @@ async function handleRequest(req: Request): Promise<Response> {
     // (7) Diagnostic-language filter. Distinct from the output guard below:
     // this catches "you have CKD" reaching a user, which the groundedness/
     // injection guard does not check for at all.
-    const filtered = filterAssistantReply(reply);
+    const filtered = filterAssistantReply(reply, { allowNegatedMean: true });
     if (!filtered.ok) {
       console.warn("general-chat: diagnostic-language filter blocked reply:", filtered.blockedReason);
-      return deflect();
+      // filtered.reply is SAFE_FALLBACK_REPLY: "I can't make statements about
+      // anyone's medical condition — talk to a doctor". The scope deflection
+      // would tell someone asking "do I have CKD?" that their kidney question
+      // was off-topic, which is false (observed 2026-11-07).
+      return deflect(filtered.reply);
     }
 
     // (8) Output safety check — cheap heuristics, no model call. Runs on the

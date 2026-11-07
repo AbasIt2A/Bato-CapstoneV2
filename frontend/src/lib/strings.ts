@@ -82,7 +82,6 @@ export interface Strings {
     send: string;
     you: string;
     bato: string;
-    batoAi: string;
     unavailableTitle: string;
     tryAgain: string;
     somethingWrong: string;
@@ -126,7 +125,7 @@ export interface Strings {
     placeholder: string;
     send: string;
     you: string;
-    batoAi: string;
+    bato: string;
     sources: string;
     replying: string;
     somethingWrong: string;
@@ -185,7 +184,6 @@ const en: Strings = {
     send: "Send",
     you: "You",
     bato: "BATO",
-    batoAi: "BATO · AI",
     unavailableTitle: "Assessment unavailable",
     tryAgain: "Try again",
     somethingWrong: "Something went wrong. Please try again.",
@@ -239,7 +237,7 @@ const en: Strings = {
     placeholder: "Type your question…",
     send: "Send",
     you: "You",
-    batoAi: "BATO · AI",
+    bato: "BATO",
     sources: "Sources",
     replying: "BATO is replying",
     somethingWrong: "Something went wrong. Please try again.",
@@ -298,7 +296,6 @@ const fil: Strings = {
     send: "Ipadala",
     you: "Ikaw",
     bato: "BATO",
-    batoAi: "BATO · AI",
     unavailableTitle: "Hindi magamit ang pagsusuri",
     tryAgain: "Subukan muli",
     somethingWrong: "May nangyaring mali. Pakisubukan muli.",
@@ -360,7 +357,7 @@ const fil: Strings = {
     placeholder: "Isulat ang iyong tanong…",
     send: "Ipadala",
     you: "Ikaw",
-    batoAi: "BATO · AI",
+    bato: "BATO",
     sources: "Mga source",
     replying: "Sumasagot ang BATO",
     somethingWrong: "May nangyaring mali. Pakisubukan muli.",
@@ -419,7 +416,6 @@ const ceb: Strings = {
     send: "Ipadala",
     you: "Ikaw",
     bato: "BATO",
-    batoAi: "BATO · AI",
     unavailableTitle: "Dili magamit ang pagsusi",
     tryAgain: "Sulayi pag-usab",
     somethingWrong: "Naay sayop nga nahitabo. Palihug sulayi pag-usab.",
@@ -481,7 +477,7 @@ const ceb: Strings = {
     placeholder: "Isulat ang imong pangutana…",
     send: "Ipadala",
     you: "Ikaw",
-    batoAi: "BATO · AI",
+    bato: "BATO",
     sources: "Mga source",
     replying: "Nagtubag ang BATO",
     somethingWrong: "Naay sayop nga nahitabo. Palihug sulayi pag-usab.",

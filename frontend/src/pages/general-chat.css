@@ -221,3 +221,10 @@
     right: 122px;
   }
 }
+
+/* Sentences that refer the reader to a doctor, pharmacist or emergency care
+   (see lib/advice.ts) — bold and darker so the safety advice stands out. */
+.general-chat .bot-advice {
+  color: #094f4d;
+  font-weight: 700;
+}

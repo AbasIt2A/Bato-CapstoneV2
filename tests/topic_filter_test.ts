@@ -22,6 +22,10 @@ Deno.test("blocks diagnostic claims", () => {
     // it, so they must stay blocked even though other conjunctions are
     // exempt — this pins that distinction.
     "Because you have CKD, you should start dialysis soon.",
+    // Un-negated "means" is a diagnosis; only "does not mean" is exempt.
+    "Your swelling means you have kidney disease.",
+    "This means you definitely have CKD.",
+    "Having diabetes means you have kidney disease now.",
     // The "know" exemption must not let the assistant claim the knowledge.
     "I know you have diabetes.",
     "We think you probably have kidney disease.",
@@ -70,5 +74,49 @@ Deno.test("passes normal screening/awareness language", () => {
     const result = filterAssistantReply(text);
     assertEquals(result.ok, true, text);
     assertEquals(result.reply, text);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// allowNegatedMean — General CKD Chatbot only (2026-11-07)
+// ---------------------------------------------------------------------------
+
+const NEGATED = [
+  "Having diabetes and high blood pressure does not mean you have kidney disease.",
+  "Swollen feet and foamy urine do not necessarily mean you have chronic kidney disease.",
+  "It doesn't mean you definitely have kidney disease.",
+  "This doesn’t mean that you have CKD, but it is worth getting tested.",
+];
+
+Deno.test("general chat: a negated 'mean' passes, unchanged", () => {
+  for (const text of NEGATED) {
+    const result = filterAssistantReply(text, { allowNegatedMean: true });
+    assertEquals(result.ok, true, text);
+    assertEquals(result.reply, text);
+  }
+});
+
+Deno.test("clarification (default): a negated 'mean' is still blocked", () => {
+  // Mid-screening, even "this does not mean you have anemia" judges a SCORED
+  // item for the user. The default must stay strict.
+  for (const text of NEGATED) {
+    assertEquals(filterAssistantReply(text).ok, false, text);
+  }
+});
+
+Deno.test("general chat: an un-negated 'means you have' is still blocked", () => {
+  for (
+    const text of [
+      "Your swelling means you have kidney disease.",
+      "This means you definitely have CKD.",
+      "Since you have diabetes, you have kidney disease.",
+      "Not to worry — you have CKD.",
+    ]
+  ) {
+    assertEquals(
+      filterAssistantReply(text, { allowNegatedMean: true }).ok,
+      false,
+      text,
+    );
   }
 });
