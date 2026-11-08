@@ -119,6 +119,8 @@ export default function GeneralChat() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
+    // Short screens scroll the page (index.css): keep the input in view.
+    document.querySelector(".composer")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [turns, sending]);
 
   async function send(raw: string) {
@@ -192,7 +194,6 @@ export default function GeneralChat() {
           <h1>{c.title}</h1>
           <p className="page-subtitle">{c.subtitle}</p>
         </div>
-        <span className="header-badge">{c.badge}</span>
       </header>
       <div className="chat" ref={scrollRef} role="log" aria-label="Kidney health conversation" aria-live="polite">
         {turns.length === 0 && (

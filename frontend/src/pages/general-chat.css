@@ -222,6 +222,27 @@
   }
 }
 
+/* Short screens (laptops with display scaling): compact header and welcome
+   card so the input stays on screen. See the matching block in index.css. */
+@media (max-height: 820px) {
+  .general-chat .page-title {
+    padding: 12px 4px 10px;
+  }
+
+  .general-chat .page-title h1 {
+    font-size: 1.5rem;
+  }
+
+  .general-chat .chat {
+    padding: 12px 4px 16px;
+  }
+
+  .general-chat .chat-empty-mark,
+  .general-chat .empty-lead {
+    display: none;
+  }
+}
+
 /* Sentences that refer the reader to a doctor, pharmacist or emergency care
    (see lib/advice.ts) — bold and darker so the safety advice stands out. */
 .general-chat .bot-advice {

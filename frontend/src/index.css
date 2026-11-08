@@ -506,6 +506,40 @@ a.source-chip:focus-visible {
   height: 100svh;
 }
 
+/* Short or narrow screens — laptops with 125–150% display scaling, phones.
+   Fitting the whole chat page into one screen squeezed the conversation to a
+   ~50px strip (participant report, 2026-11-08). Here the page scrolls
+   instead, the conversation keeps a readable height of its own, and the
+   headings get compact. */
+@media (max-height: 820px), (max-width: 720px) {
+  .app:has(.chat-page) {
+    height: auto;
+  }
+
+  .chat-page .chat {
+    flex: none;
+    height: auto;
+    min-height: 140px;
+    max-height: max(260px, 55svh);
+  }
+
+  .site-header {
+    padding: 10px 0;
+  }
+
+  .assessment-chat h1 {
+    font-size: 1.6rem;
+  }
+
+  .assessment-chat-header {
+    padding-bottom: 8px;
+  }
+
+  .assessment-chat-header p {
+    margin: 4px 0 0;
+  }
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

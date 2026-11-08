@@ -137,6 +137,11 @@ export default function AssessmentChat() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
+    // Short screens scroll the page (index.css): keep the answer box in view
+    // once the conversation is under way. A no-op where it already fits.
+    if (turns.length > 1) {
+      document.querySelector(".composer")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
   }, [turns, busy]);
 
   async function begin() {
