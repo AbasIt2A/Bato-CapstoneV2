@@ -194,8 +194,6 @@ export default function GeneralChat() {
         </div>
         <span className="header-badge">{c.badge}</span>
       </header>
-      <p className="chat-ai-notice" role="note">{c.notice}</p>
-
       <div className="chat" ref={scrollRef} role="log" aria-label="Kidney health conversation" aria-live="polite">
         {turns.length === 0 && (
           <div className="empty">
@@ -290,6 +288,7 @@ export default function GeneralChat() {
           {c.send}
         </button>
       </form>
+      <p className="chat-footnote" role="note">{c.notice}</p>
     </div>
   );
 }

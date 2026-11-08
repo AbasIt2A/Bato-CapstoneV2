@@ -10,6 +10,7 @@ import {
 } from "../../lib/assessment-api";
 import { hasConsented } from "../../lib/consent";
 import { isQuestionShaped } from "../../lib/question-shape";
+import { markAssessmentCompleted, setAssessmentInProgress } from "../../lib/progress";
 import { useI18n } from "../../lib/i18n";
 import { redactPersonalDetails } from "../../lib/personal-details";
 import type { InvalidCode, ScreeningKey } from "../../lib/strings";
@@ -115,10 +116,20 @@ export default function AssessmentChat() {
   // leaves mid-screening (the server keeps nothing once a session ends).
   const activeIdRef = useRef<string | null>(null);
 
-  useEffect(() => () => {
-    if (activeIdRef.current) {
-      void abandonScreening(activeIdRef.current).catch(() => {});
-    }
+  useEffect(() => {
+    // Closing or reloading the tab mid-assessment: browsers only allow their
+    // own generic "Leave site?" box here, not custom text.
+    const warn = (e: BeforeUnloadEvent) => {
+      if (activeIdRef.current) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      setAssessmentInProgress(false);
+      if (activeIdRef.current) {
+        void abandonScreening(activeIdRef.current).catch(() => {});
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -136,6 +147,7 @@ export default function AssessmentChat() {
     try {
       const res = await startScreening();
       activeIdRef.current = res.assessmentId;
+      setAssessmentInProgress(true);
       setAssessmentId(res.assessmentId);
       setStep(res.step);
       setTurns([promptTurn(res.step)]);
@@ -214,6 +226,8 @@ export default function AssessmentChat() {
       } else if (res.completed && res.result) {
         // The server deleted the assessment when it returned the result.
         activeIdRef.current = null;
+        setAssessmentInProgress(false);
+        markAssessmentCompleted();
         setResult(res.result);
       } else if (res.step) {
         setStep(res.step);
@@ -311,7 +325,13 @@ export default function AssessmentChat() {
           </span>
         )}
       </header>
-      <p className="assessment-notice" role="note">{a.notice}</p>
+      <p className="chat-ai-notice" role="note">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="M12 11v5M12 8h.01" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+        <span>{a.notice}</span>
+      </p>
       {step && (
         <div
           className="assessment-progress"

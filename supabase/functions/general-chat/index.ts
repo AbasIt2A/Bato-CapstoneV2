@@ -91,9 +91,12 @@ import {
   stripInlineCitations,
 } from "../_shared/citations.ts";
 import { filterAssistantReply } from "../_shared/topic-filter.ts";
+import { EMERGENCY_REPLY, isEmergency } from "../_shared/emergency.ts";
+import { checkRoleBoundary, ROLE_BOUNDARY_REPLY } from "../_shared/role-boundary.ts";
 import {
   DEFLECTION_MESSAGE,
   GENERAL_CHAT_SYSTEM_PROMPT,
+  NOT_IN_SOURCES_MESSAGE,
   SERVICE_ERROR_MESSAGE,
 } from "../_shared/prompts.ts";
 import {
@@ -200,7 +203,26 @@ async function handleRequest(req: Request): Promise<Response> {
   // Personal details are removed before the text reaches the gate, the
   // answer cache, Gemini, Groq or Cohere (see personal-details.ts). The
   // browser filters first, but no client is trusted to.
-  const message = redactPersonalDetails(rawMessage);
+  const redacted = redactPersonalDetails(rawMessage);
+
+  // A possible emergency gets a fixed "call 911" reply before any gate,
+  // threshold or model can refuse it (emergency.ts).
+  if (isEmergency(redacted)) {
+    console.warn("general-chat: emergency wording — fixed emergency reply");
+    const body: ChatResponse = { reply: EMERGENCY_REPLY, sources: [], deflected: false };
+    return jsonResponse(body);
+  }
+
+  // "Diagnose me", "pretend you are a doctor", "don't tell me to see a
+  // doctor": an honest refusal instead of the scope deflection, or — for a
+  // real question behind a no-referral preamble — the question alone, which
+  // then takes the normal pipeline (role-boundary.ts).
+  const boundary = checkRoleBoundary(redacted);
+  if (boundary?.kind === "refuse") {
+    console.warn("general-chat: diagnosis/role request — role-boundary reply");
+    return deflect(ROLE_BOUNDARY_REPLY);
+  }
+  const message = boundary?.kind === "strip" ? boundary.question : redacted;
 
   // Optional, unverified, and validated rather than trusted: malformed
   // history degrades to no history, which is simply the single-turn request
@@ -389,7 +411,9 @@ async function handleRequest(req: Request): Promise<Response> {
       console.warn(
         "general-chat: no chunks cleared the rerank threshold — deflecting",
       );
-      return deflect();
+      // The gate already judged this a kidney question; nothing in the corpus
+      // matched it, which is a coverage gap, not an off-topic question.
+      return deflect(NOT_IN_SOURCES_MESSAGE);
     }
 
     // (5) Generate. The system prompt is the ONLY trusted instruction
@@ -426,7 +450,14 @@ async function handleRequest(req: Request): Promise<Response> {
           split.hasFooter ? split.declared.join(", ") || "empty" : "absent"
         }) — deflecting`,
       );
-      return deflect();
+      // The model's own scope refusal (the exact approved sentence) stays a
+      // scope refusal. Anything else here is an in-scope question the corpus
+      // could not ground — "I don't have that" is the honest reply, not "off
+      // topic" (observed 2026-11-07: "the latest 2026 Philippine guideline
+      // for stage 4 CKD").
+      return deflect(
+        draft.trim() === DEFLECTION_MESSAGE ? DEFLECTION_MESSAGE : NOT_IN_SOURCES_MESSAGE,
+      );
     }
     // Backstop for the prose rule: strip any citation the model wrote into
     // the sentences anyway, so the reply reads the same way every time.

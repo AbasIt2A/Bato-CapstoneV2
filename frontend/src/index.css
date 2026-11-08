@@ -580,11 +580,41 @@ a.source-chip:focus-visible {
 
 /* Always-visible AI disclosure on the General CKD Chatbot (UIC-REC). */
 .chat-ai-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 12px;
-  padding: 10px 14px;
-  font-size: 0.85rem;
-  color: var(--ink);
-  background: var(--deflect-bg);
-  border: 1px solid var(--deflect-edge);
+  padding: 7px 12px;
   border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
+
+.chat-ai-notice svg {
+  flex: none;
+  color: var(--accent);
+}
+
+/* Small print under the KidneyLearn input, and beside the consent buttons. */
+.chat-footnote,
+.consent-ai-note {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.chat-footnote {
+  text-align: center;
+}
+
+/* Lock beside "KidneyLearn" until the assessment is finished (App.tsx). */
+.nav-lock {
+  display: inline-flex;
+  margin-left: 5px;
+  vertical-align: -1px;
+  opacity: 0.6;
+}
+

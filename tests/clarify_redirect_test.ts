@@ -31,7 +31,7 @@ Deno.test("redirect: the anemia symptoms reply is the approved wording", () => {
       "that you have anemia, not about symptoms. Symptoms like tiredness have " +
       "many causes, so they can't tell you whether you have it. If you're not " +
       "sure, the screening asks you to answer no. You can ask about anemia " +
-      "symptoms in the Kidney chat after you finish.",
+      "symptoms in KidneyLearn after you finish.",
   );
 });
 
@@ -47,7 +47,7 @@ Deno.test("redirect: every condition question gets its own reply, for every reas
       assertEquals(r?.reason, reason, `${key}/${reason}`);
       assertEquals(r?.condition, key, `${key}/${reason}`);
       assertMatch(r!.reply, /^This question is about whether /);
-      assertMatch(r!.reply, /Kidney chat after you finish\.$/);
+      assertMatch(r!.reply, /KidneyLearn after you finish\.$/);
     }
   }
 });

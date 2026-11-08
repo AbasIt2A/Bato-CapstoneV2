@@ -34,9 +34,9 @@ export default function ConsentGate({
       <span className="assessment-eyebrow">{c.eyebrow}</span>
       <h1 id="assessment-consent-title">{c.title}</h1>
       <p>{c.intro}</p>
-      <div className="assessment-consent-data assessment-consent-ai">
-        <h2>{c.aiTitle}</h2>
-        <p>{c.aiBody}</p>
+      <div className="assessment-consent-data">
+        <h2>{c.scoreTitle}</h2>
+        <p>{c.scoreBody}</p>
       </div>
       <div className="assessment-consent-data">
         <h2>{c.dataTitle}</h2>
@@ -69,6 +69,7 @@ export default function ConsentGate({
           {c.decline}
         </button>
       </div>
+      <p className="consent-ai-note">{c.aiNote}</p>
     </section>
   );
 }

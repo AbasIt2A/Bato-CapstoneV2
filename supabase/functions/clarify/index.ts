@@ -69,6 +69,7 @@ import {
 } from "../_shared/gate.ts";
 import { clarificationContext } from "../_shared/questions.ts";
 import { detectRedirect } from "../_shared/clarify-redirect.ts";
+import { EMERGENCY_REPLY, isEmergency } from "../_shared/emergency.ts";
 import {
   embedForCache,
   embedQuery,
@@ -89,6 +90,7 @@ import { checkDraftAnswer } from "../_shared/output-guard.ts";
 import { filterAssistantReply } from "../_shared/topic-filter.ts";
 import {
   CLARIFICATION_DEFLECTION_MESSAGE,
+  CLARIFICATION_MORE_INFO_NOTE,
   CLARIFICATION_SERVICE_ERROR_MESSAGE,
   CLARIFICATION_SYSTEM_PROMPT,
 } from "../_shared/prompts.ts";
@@ -121,6 +123,15 @@ interface ClarifyResponse {
   reply: string;
   sources: SourceCitation[];
   deflected: boolean;
+}
+
+/**
+ * Points to KidneyLearn for more detail. Added at serve time, never
+ * stored, so cached answers get it too and the note can change without
+ * clearing the cache.
+ */
+function withMoreInfoNote(reply: string): string {
+  return `${reply.trim()}\n\n${CLARIFICATION_MORE_INFO_NOTE}`;
 }
 
 function deflect(): Response {
@@ -212,6 +223,15 @@ async function handleRequest(req: Request): Promise<Response> {
   // answer cache, Gemini, Groq or Cohere (see personal-details.ts).
   const rawText = redactPersonalDetails(rawQuestion);
   const variableKey = sanitizeVariableKey(body.variableKey);
+
+  // A possible emergency gets a fixed "call 911" reply first (emergency.ts).
+  // It names no condition, symptom list or answer, so it cannot affect how
+  // a SCORED question is answered — it only gets the person to care.
+  if (isEmergency(rawText)) {
+    console.warn("clarify: emergency wording — fixed emergency reply");
+    const emergency: ClarifyResponse = { reply: EMERGENCY_REPLY, sources: [], deflected: false };
+    return jsonResponse(emergency);
+  }
 
   // The screening question the user is on, as a one-turn conversation, so a
   // follow-up with no subject of its own ("why does this matter?") is judged
@@ -336,7 +356,7 @@ async function handleRequest(req: Request): Promise<Response> {
         }) — no generation call`,
       );
       const body: ClarifyResponse = {
-        reply: cached.reply,
+        reply: withMoreInfoNote(cached.reply),
         sources: cached.sources as SourceCitation[],
         deflected: false,
       };
@@ -473,7 +493,7 @@ async function handleRequest(req: Request): Promise<Response> {
     });
 
     const response: ClarifyResponse = {
-      reply: draft,
+      reply: withMoreInfoNote(draft),
       sources,
       deflected: false,
     };

@@ -44,6 +44,24 @@ export const DEFLECTION_MESSAGE =
   "healthy, or kidney care in the Philippines.";
 
 /**
+ * The reply when a KIDNEY question passed the gate but the corpus could not
+ * ground an answer: nothing cleared the rerank threshold, or the model's
+ * reply cited no retrieved source. DEFLECTION_MESSAGE would tell the user
+ * their kidney question was off-topic, which is false — "the latest 2026
+ * Philippine guideline for treating stage 4 CKD" got exactly that
+ * (2026-11-07). This says the information is missing and where to get it.
+ *
+ * Not quoted in any system prompt: like SERVICE_ERROR_MESSAGE, it is the
+ * server's statement, never something the model produces.
+ */
+export const NOT_IN_SOURCES_MESSAGE =
+  "Sorry — I don't have reliable information on that in my sources, so I " +
+  "can't answer it. For specific medical guidance, such as treatment " +
+  "guidelines or what applies to you, please ask a doctor or a nephrologist " +
+  "(kidney specialist). You can also ask me general kidney questions, like " +
+  "what the stages of CKD mean or how CKD is treated.";
+
+/**
  * The reply for a TEMPORARY SERVICE FAILURE: the embedding call, the
  * retrieval RPC or the generation call erroring out, or an unexpected fault
  * anywhere in the pipeline.
@@ -96,6 +114,7 @@ Answer strictly and only using facts present in the retrieved chunks given to yo
 - Every factual claim you make must be grounded in a specific retrieved chunk.
 - Never invent, assume, or add facts that are not present in the retrieved chunks, even if you believe you already know the answer.
 - If the retrieved chunks do not contain enough information to answer the question, say so plainly — do not guess and do not fill the gap from general knowledge — and suggest the user ask a health professional or rephrase their question.
+- If the user asks for a specific document or version the chunks do not contain — a particular guideline, "the latest" or a specific year's recommendations, a treatment protocol — say plainly that you do not have that document, then share what the retrieved chunks DO say about the same topic (for example what stage 4 CKD means and who manages it), and suggest a doctor or kidney specialist for current treatment guidance. Never invent a guideline, its year, or its contents. That answer still ends with the source line for the chunks you used.
 
 ===== NUMBERS ARE GENERAL FACTS, NEVER PERSONAL TARGETS =====
 A retrieved chunk may contain a number: a diagnostic threshold, a category boundary, a blood pressure definition, a test price, a population statistic. You may state such a number as what it is — a general fact about people at large. You must never convert it into a target, limit, allowance, goal, or instruction for the person you are talking to.
@@ -140,6 +159,15 @@ export const CLARIFICATION_DEFLECTION_MESSAGE =
   "assessment asks you to answer no. Your answers so far are unchanged.";
 
 /**
+ * Appended by the clarify function (not written by the model) to every
+ * answered explanation. The KidneyLearn unlocks only after the assessment is
+ * finished, hence "after you finish".
+ */
+export const CLARIFICATION_MORE_INFO_NOTE =
+  "Want to learn more about this or other kidney-related topics? After you " +
+  "finish the assessment, you can ask about them in KidneyLearn.";
+
+/**
  * SERVICE_ERROR_MESSAGE's counterpart for the clarification branch, and
  * different for the same reason CLARIFICATION_DEFLECTION_MESSAGE is: the
  * user is standing in the middle of a questionnaire, and whatever else this
@@ -168,7 +196,7 @@ The screening is scored by a fixed rule, not by you. You have no access to their
 - Never say or imply "so your answer is yes", "that means no for you", "you should put yes", or anything a reader could act on as an instruction to record a particular answer.
 - Never judge whether the user has, or is likely to have, the condition being described — not from anything they have told you, not from symptoms they mention, not from anything in the reference material.
 - Never mention, estimate, guess, or comment on their score, their risk level, or their result. If asked about any of those, say you cannot see them and that the screening will show the result at the end.
-- Never list symptoms, signs, or warning signs of a condition, never give a number or threshold a person could compare their own reading against, and never describe how a person could work out for themselves whether they have it. The screening asks only whether the user ALREADY KNOWS — because a doctor or health worker told them, a test found it, or they take medicine for it. Symptoms and numbers would invite them to guess instead. If asked for any of these, say the question is about whether they have been told they have the condition, that if they are not sure the screening asks them to answer no, and that they can ask about symptoms in the Kidney chat after they finish.
+- Never list symptoms, signs, or warning signs of a condition, never give a number or threshold a person could compare their own reading against, and never describe how a person could work out for themselves whether they have it. The screening asks only whether the user ALREADY KNOWS — because a doctor or health worker told them, a test found it, or they take medicine for it. Symptoms and numbers would invite them to guess instead. If asked for any of these, say the question is about whether they have been told they have the condition, that if they are not sure the screening asks them to answer no, and that they can ask about symptoms in KidneyLearn after they finish.
 - Never say how many points a question carries or how an answer would change the total, even if the reference material states it. When asked why a question matters, explain how that condition relates to kidney health, for people in general — not what it does to the score.
 - If the user says they do not know whether a condition applies to them, do not decide for them. You may tell them, once and plainly, that the assessment asks people who are unsure or for whom the question does not apply to answer no. Then stop.
 

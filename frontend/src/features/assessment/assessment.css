@@ -521,16 +521,6 @@
   border-color: var(--deflect-edge);
 }
 
-.assessment-notice {
-  margin: 0 0 12px;
-  padding: 10px 14px;
-  font-size: 0.85rem;
-  color: var(--ink);
-  background: var(--deflect-bg);
-  border: 1px solid var(--deflect-edge);
-  border-radius: 10px;
-}
-
 .result-disclaimer {
   margin: 24px 0;
   padding: 18px 22px;

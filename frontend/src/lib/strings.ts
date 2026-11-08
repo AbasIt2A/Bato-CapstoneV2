@@ -56,8 +56,10 @@ export interface Strings {
     eyebrow: string;
     title: string;
     intro: string;
-    aiTitle: string;
-    aiBody: string;
+    scoreTitle: string;
+    scoreBody: string;
+    /** Small print beside the "I agree" button. */
+    aiNote: string;
     dataTitle: string;
     dataItems: string[];
     voluntary: string;
@@ -139,10 +141,19 @@ export interface Strings {
     unavailable: string;
     thanks: string;
   };
+  chatLock: {
+    locked: string;
+    eyebrow: string;
+    title: string;
+    body: string;
+    start: string;
+    leaveConfirm: string;
+    leaveLockNote: string;
+  };
 }
 
 const en: Strings = {
-  nav: { assessment: "Assessment", chat: "Kidney chat", labs: "Find labs", feedback: "Feedback" },
+  nav: { assessment: "Assessment", chat: "KidneyLearn", labs: "Find labs", feedback: "Feedback" },
   languageLabel: "Language",
   footer: {
     lead: "For awareness, not diagnosis.",
@@ -152,8 +163,9 @@ const en: Strings = {
     eyebrow: "Before you start",
     title: "Please read this first",
     intro: "BATO is a research project of the College of Computer Studies, University of the Immaculate Conception, Davao City. It checks your risk of Chronic Kidney Disease (CKD) using the SCORED questionnaire. It is a screening tool only: it does not diagnose any disease and does not replace a doctor.",
-    aiTitle: "You will be using an AI-powered chatbot",
-    aiBody: "BATO's chat answers, and its explanations of the screening questions, are written by artificial intelligence (AI) using trusted health sources. AI can make mistakes or leave things out. Do not use it to make medical decisions. Talk to a doctor.",
+    scoreTitle: "How your score is calculated",
+    scoreBody: "BATO uses SCORED (Screening for Occult Renal Disease), a published questionnaire for kidney disease risk. Your age gives 0 to 4 points (under 50: 0, 50–59: 2, 60–69: 3, 70 or older: 4). Each of the other eight items adds 1 point if it applies to you: being female, anemia, high blood pressure, diabetes, a past heart attack or stroke, heart failure, poor blood flow in the legs (peripheral vascular disease), and protein in the urine. A total of 4 or more means a higher risk, and you should have your kidneys checked by a doctor. The score comes from this fixed formula; the AI does not calculate or change it.",
+    aiNote: "BATO's AI can make mistakes. Its explanations come from trusted health sources but are not medical advice. Talk to a doctor about your health.",
     dataTitle: "What happens to your information",
     dataItems: [
       "No name, email or account is needed. Your session is anonymous.",
@@ -218,7 +230,7 @@ const en: Strings = {
     negativeWarningTitle: "A low score is not a guarantee",
     negativeWarning: "A Screen Negative result does not mean you are free of kidney disease. Kidney disease often has no symptoms, and this screening can miss it — especially if you have never had your blood pressure, blood sugar or urine checked. Routine medical check-ups remain essential.",
     negativeNextTitle: "What to do next",
-    negativeNext: "Keep up regular check-ups with a doctor or health center, manage your blood pressure and blood sugar, and ask the Kidney Health Chat how to protect your kidneys.",
+    negativeNext: "Keep up regular check-ups with a doctor or health center, manage your blood pressure and blood sugar, and ask KidneyLearn how to protect your kidneys.",
     accuracyTitle: "How accurate is this?",
     accuracyBody: "The score is computed by fixed, published medical rules (SCORED — Bang et al., 2007), not by AI. Screening tools estimate risk: they can miss cases and can flag people who turn out fine.",
     retake: "Retake the assessment",
@@ -229,7 +241,7 @@ const en: Strings = {
     title: "Ask about kidney health",
     subtitle: "Clear answers to general questions, grounded in trusted health sources.",
     badge: "AI chatbot",
-    notice: "This is an AI-powered chatbot. Its answers come from trusted health sources, but it can make mistakes. Do not use it to make medical decisions — talk to a doctor. Please do not type your name or other personal details.",
+    notice: "BATO is an AI-powered educational chatbot. Its responses may contain inaccuracies and should not replace professional medical advice. Please avoid sharing personal or sensitive information.",
     emptyTitle: "What would you like to know?",
     emptyLead: "Explore kidney conditions, tests, medicines, prevention, and kidney care in the Philippines.",
     tryQuestion: "Try a question",
@@ -245,16 +257,25 @@ const en: Strings = {
   feedback: {
     eyebrow: "SHARE YOUR EXPERIENCE",
     title: "Tell us what you think",
-    body: "Finished the screening and the Kidney chat? Please answer our short feedback form. It has three short surveys and takes about 10 minutes.",
+    body: "Finished the screening and KidneyLearn? Please answer our short feedback form. It has three short surveys and takes about 10 minutes.",
     button: "Open the feedback form",
     newTab: "Opens Google Forms in a new tab.",
     unavailable: "The feedback form is not ready yet. Please ask the researcher.",
     thanks: "Thank you for helping our research!",
   },
+  chatLock: {
+    locked: "Locked until you finish the assessment",
+    eyebrow: "KIDNEYLEARN",
+    title: "Finish the risk assessment first",
+    body: "KidneyLearn opens after you finish the risk assessment and see your result. This keeps your screening answers your own. You can use Find labs at any time.",
+    start: "Start the risk assessment",
+    leaveConfirm: "Leave the assessment? Your answers so far will be deleted.",
+    leaveLockNote: "KidneyLearn opens after you finish the assessment.",
+  },
 };
 
 const fil: Strings = {
-  nav: { assessment: "Pagsusuri", chat: "Kidney chat", labs: "Hanapin ang lab", feedback: "Puna" },
+  nav: { assessment: "Pagsusuri", chat: "KidneyLearn", labs: "Hanapin ang lab", feedback: "Puna" },
   languageLabel: "Wika",
   footer: {
     lead: "Para sa kaalaman, hindi para sa diagnosis.",
@@ -264,8 +285,9 @@ const fil: Strings = {
     eyebrow: "Bago magsimula",
     title: "Pakibasa muna ito",
     intro: "Ang BATO ay isang research project ng College of Computer Studies, University of the Immaculate Conception, Davao City. Sinusuri nito ang iyong panganib sa Chronic Kidney Disease (CKD) gamit ang SCORED questionnaire. Isa lamang itong screening tool: hindi ito nagda-diagnose ng anumang sakit at hindi nito pinapalitan ang doktor.",
-    aiTitle: "Gagamit ka ng chatbot na pinapagana ng AI",
-    aiBody: "Ang mga sagot ng chat ng BATO, at ang mga paliwanag nito sa mga tanong sa screening, ay isinusulat ng artificial intelligence (AI) gamit ang mapagkakatiwalaang mga health source. Maaaring magkamali ang AI o may makaligtaan. Huwag itong gamitin sa paggawa ng mga desisyong medikal. Kumausap ng doktor.",
+    scoreTitle: "Paano kinukuwenta ang iyong score",
+    scoreBody: "Gumagamit ang BATO ng SCORED (Screening for Occult Renal Disease), isang nailathalang questionnaire para sa panganib ng sakit sa bato. Ang iyong edad ay nagbibigay ng 0 hanggang 4 na puntos (wala pang 50: 0, 50–59: 2, 60–69: 3, 70 pataas: 4). Ang bawat isa sa walong iba pang tanong ay nagdadagdag ng 1 puntos kung totoo ito sa iyo: babae, anemia, high blood pressure, diabetes, dating atake sa puso o stroke, heart failure, mahinang daloy ng dugo sa binti (peripheral vascular disease), at protina sa ihi. Kapag 4 o higit pa ang kabuuan, mas mataas ang iyong panganib at dapat kang magpasuri ng bato sa doktor. Ang score ay galing sa nakapirming pormulang ito; hindi ito kinukuwenta o binabago ng AI.",
+    aiNote: "Maaaring magkamali ang AI ng BATO. Galing sa mapagkakatiwalaang health source ang mga paliwanag nito, pero hindi ito medikal na payo. Kumausap ng doktor tungkol sa iyong kalusugan.",
     dataTitle: "Ano ang nangyayari sa iyong impormasyon",
     dataItems: [
       "Hindi kailangan ng pangalan, email, o account. Anonymous ang iyong session.",
@@ -338,7 +360,7 @@ const fil: Strings = {
     negativeWarningTitle: "Hindi garantiya ang mababang score",
     negativeWarning: "Ang Screen Negative na resulta ay hindi nangangahulugang wala kang sakit sa bato. Kadalasang walang sintomas ang sakit sa bato, at maaari itong hindi matukoy ng screening na ito — lalo na kung hindi pa nasusuri ang iyong blood pressure, blood sugar, o ihi. Mahalaga pa rin ang regular na medical check-up.",
     negativeNextTitle: "Ano ang susunod na gagawin",
-    negativeNext: "Magpatuloy sa regular na check-up sa doktor o health center, bantayan ang iyong blood pressure at blood sugar, at magtanong sa Kidney Health Chat kung paano pangalagaan ang iyong mga bato.",
+    negativeNext: "Magpatuloy sa regular na check-up sa doktor o health center, bantayan ang iyong blood pressure at blood sugar, at magtanong sa KidneyLearn kung paano pangalagaan ang iyong mga bato.",
     accuracyTitle: "Gaano ito katumpak?",
     accuracyBody: "Kinukuwenta ang score gamit ang nakapirming nailathalang mga panuntunang medikal (SCORED — Bang et al., 2007), hindi ng AI. Tinatantya lamang ng mga screening tool ang panganib: maaari silang makaligta ng kaso at maaaring mag-flag ng mga taong wala namang sakit.",
     retake: "Ulitin ang pagsusuri",
@@ -349,7 +371,7 @@ const fil: Strings = {
     title: "Magtanong tungkol sa kalusugan ng bato",
     subtitle: "Malinaw na sagot sa mga pangkalahatang tanong, batay sa mapagkakatiwalaang mga health source.",
     badge: "AI chatbot",
-    notice: "Ito ay chatbot na pinapagana ng AI. Galing sa mapagkakatiwalaang mga health source ang mga sagot nito, pero maaari itong magkamali. Huwag itong gamitin sa paggawa ng mga desisyong medikal — kumausap ng doktor. Huwag isulat ang iyong pangalan o iba pang personal na detalye. Nasa Ingles ang mga sagot.",
+    notice: "Ang BATO ay isang pang-edukasyong chatbot na pinapagana ng AI. Maaaring may mali ang mga sagot nito at hindi dapat ipalit sa propesyonal na payong medikal. Iwasang magbahagi ng personal o sensitibong impormasyon. Nasa Ingles ang mga sagot.",
     emptyTitle: "Ano ang gusto mong malaman?",
     emptyLead: "Alamin ang tungkol sa mga kondisyon ng bato, mga test, gamot, pag-iwas, at pangangalaga sa bato sa Pilipinas.",
     tryQuestion: "Subukan ang isang tanong",
@@ -365,16 +387,25 @@ const fil: Strings = {
   feedback: {
     eyebrow: "IBAHAGI ANG IYONG KARANASAN",
     title: "Ano ang masasabi mo?",
-    body: "Natapos mo na ba ang screening at ang Kidney chat? Pakisagutan ang aming maikling feedback form. Mayroon itong tatlong maikling survey at aabutin ng mga 10 minuto.",
+    body: "Natapos mo na ba ang screening at ang KidneyLearn? Pakisagutan ang aming maikling feedback form. Mayroon itong tatlong maikling survey at aabutin ng mga 10 minuto.",
     button: "Buksan ang feedback form",
     newTab: "Magbubukas ang Google Forms sa bagong tab.",
     unavailable: "Hindi pa handa ang feedback form. Pakitanong sa researcher.",
     thanks: "Salamat sa pagtulong sa aming pag-aaral!",
   },
+  chatLock: {
+    locked: "Naka-lock hanggang matapos mo ang pagsusuri",
+    eyebrow: "KIDNEYLEARN",
+    title: "Tapusin muna ang risk assessment",
+    body: "Magbubukas ang KidneyLearn kapag natapos mo ang risk assessment at nakita ang iyong resulta. Sa ganitong paraan, sarili mo talaga ang iyong mga sagot sa screening. Maaari mong gamitin ang Hanapin ang lab anumang oras.",
+    start: "Simulan ang risk assessment",
+    leaveConfirm: "Iiwan ang pagsusuri? Mabubura ang iyong mga sagot sa ngayon.",
+    leaveLockNote: "Magbubukas ang KidneyLearn kapag natapos mo ang pagsusuri.",
+  },
 };
 
 const ceb: Strings = {
-  nav: { assessment: "Pagsusi", chat: "Kidney chat", labs: "Pangitag lab", feedback: "Komento" },
+  nav: { assessment: "Pagsusi", chat: "KidneyLearn", labs: "Pangitag lab", feedback: "Komento" },
   languageLabel: "Pinulongan",
   footer: {
     lead: "Para sa kahibalo, dili para sa diagnosis.",
@@ -384,8 +415,9 @@ const ceb: Strings = {
     eyebrow: "Sa dili pa magsugod",
     title: "Palihug basaha una kini",
     intro: "Ang BATO usa ka research project sa College of Computer Studies, University of the Immaculate Conception, Davao City. Gisusi niini ang imong risgo sa Chronic Kidney Disease (CKD) gamit ang SCORED questionnaire. Usa lang kini ka screening tool: dili kini modiagnose og bisan unsang sakit ug dili kini puli sa doktor.",
-    aiTitle: "Mogamit ka og chatbot nga gipaandar sa AI",
-    aiBody: "Ang mga tubag sa chat sa BATO, ug ang mga pagpasabot niini sa mga pangutana sa screening, gisulat sa artificial intelligence (AI) gamit ang kasaligang mga health source. Mahimong masayop ang AI o naay masipyat. Ayaw kini gamita sa paghimo og mga desisyon medikal. Pakigsulti sa doktor.",
+    scoreTitle: "Unsaon pagkuwenta sa imong score",
+    scoreBody: "Gigamit sa BATO ang SCORED (Screening for Occult Renal Disease), usa ka napatik nga questionnaire para sa risgo sa sakit sa kidney. Ang imong edad mohatag og 0 hangtod 4 ka puntos (ubos sa 50: 0, 50–59: 2, 60–69: 3, 70 pataas: 4). Ang matag usa sa walo pa ka pangutana modugang og 1 ka puntos kung tinuod kini kanimo: babaye, anemia, high blood pressure, diabetes, kaniadto nga atake sa kasingkasing o stroke, heart failure, hinay nga dagan sa dugo sa tiil (peripheral vascular disease), ug protina sa ihi. Kung 4 o labaw pa ang total, mas taas ang imong risgo ug angay nimong ipasusi ang imong kidney sa doktor. Ang score gikan niining piho nga pormula; dili kini gikuwenta o giusab sa AI.",
+    aiNote: "Mahimong masayop ang AI sa BATO. Gikan sa kasaligang mga health source ang mga pagpasabot niini, apan dili kini medikal nga tambag. Pakigsulti sa doktor bahin sa imong panglawas.",
     dataTitle: "Unsay mahitabo sa imong impormasyon",
     dataItems: [
       "Dili kinahanglan ang ngalan, email, o account. Anonymous ang imong session.",
@@ -458,7 +490,7 @@ const ceb: Strings = {
     negativeWarningTitle: "Dili garantiya ang ubos nga score",
     negativeWarning: "Ang Screen Negative nga resulta wala magpasabot nga wala kay sakit sa kidney. Kasagaran walay sintomas ang sakit sa kidney, ug mahimong dili kini makit-an niini nga screening — labi na kung wala pa masusi ang imong blood pressure, blood sugar, o ihi. Importante gihapon ang regular nga medical check-up.",
     negativeNextTitle: "Unsay sunod nga buhaton",
-    negativeNext: "Padayon sa regular nga check-up sa doktor o health center, bantayi ang imong blood pressure ug blood sugar, ug pangutana sa Kidney Health Chat kung unsaon pag-atiman sa imong mga kidney.",
+    negativeNext: "Padayon sa regular nga check-up sa doktor o health center, bantayi ang imong blood pressure ug blood sugar, ug pangutana sa KidneyLearn kung unsaon pag-atiman sa imong mga kidney.",
     accuracyTitle: "Unsa ka sakto kini?",
     accuracyBody: "Ang score gikuwenta gamit ang piho ug napatik nga mga lagda medikal (SCORED — Bang et al., 2007), dili sa AI. Gibanabana lang sa mga screening tool ang risgo: mahimong masipyat sila og kaso ug mahimong ma-flag ang mga tawo nga wala diay sakit.",
     retake: "Usba ang pagsusi",
@@ -469,7 +501,7 @@ const ceb: Strings = {
     title: "Pangutana bahin sa panglawas sa kidney",
     subtitle: "Klarong tubag sa kinatibuk-ang mga pangutana, gibase sa kasaligang mga health source.",
     badge: "AI chatbot",
-    notice: "Kini usa ka chatbot nga gipaandar sa AI. Gikan sa kasaligang mga health source ang mga tubag niini, pero mahimo kining masayop. Ayaw kini gamita sa paghimo og mga desisyon medikal — pakigsulti sa doktor. Ayaw isulat ang imong ngalan o ubang personal nga detalye. Naa sa English ang mga tubag.",
+    notice: "Ang BATO usa ka pang-edukasyong chatbot nga gipaandar sa AI. Mahimong naay sayop ang mga tubag niini ug dili kini angay ipuli sa propesyonal nga tambag medikal. Likayi ang pagpaambit og personal o sensitibong impormasyon. Naa sa English ang mga tubag.",
     emptyTitle: "Unsay gusto nimong mahibaloan?",
     emptyLead: "Susiha ang mga kondisyon sa kidney, mga test, tambal, paglikay, ug pag-atiman sa kidney sa Pilipinas.",
     tryQuestion: "Sulayi ang usa ka pangutana",
@@ -485,11 +517,20 @@ const ceb: Strings = {
   feedback: {
     eyebrow: "SHARE YOUR EXPERIENCE",
     title: "Tell us what you think",
-    body: "Tapos na ba nimo ang screening ug ang Kidney chat? Palihug tubaga ang among mubo nga feedback form. Kini adunay tulo ka mubo nga survey ug mokabat og mga 10 minutos.",
+    body: "Tapos na ba nimo ang screening ug ang KidneyLearn? Palihug tubaga ang among mubo nga feedback form. Kini adunay tulo ka mubo nga survey ug mokabat og mga 10 minutos.",
     button: "Ablihi ang feedback form",
     newTab: "Moabli sa Google Forms sa bag-ong tab.",
     unavailable: "Wala pa maandam ang feedback form. Palihug pangutan-a ang researcher.",
     thanks: "Salamat sa pagtabang sa among pagtuon!",
+  },
+  chatLock: {
+    locked: "Naka-lock hangtod mahuman nimo ang pagsusi",
+    eyebrow: "KIDNEYLEARN",
+    title: "Humana una ang risk assessment",
+    body: "Maabli ang KidneyLearn human nimo mahuman ang risk assessment ug makita ang imong resulta. Niini, imo gyud ang imong mga tubag sa screening. Mahimo nimong gamiton ang Pangitag lab bisan kanus-a.",
+    start: "Sugdi ang risk assessment",
+    leaveConfirm: "Biyaan ang pagsusi? Mapapas ang imong mga tubag karon.",
+    leaveLockNote: "Maabli ang KidneyLearn human nimo mahuman ang pagsusi.",
   },
 };
 

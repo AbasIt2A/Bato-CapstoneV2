@@ -17,7 +17,7 @@
 //
 // So those questions never reach retrieval or generation. They get a fixed,
 // server-written reply that says what the question is really asking, repeats
-// the paper's not-sure rule, and points to the general Kidney chat, where
+// the paper's not-sure rule, and points to the general KidneyLearn, where
 // symptoms can be discussed with no score depending on them.
 //
 // Fixed text rather than a prompt instruction because a model cannot drift
@@ -203,7 +203,7 @@ function reasonFor(question: string): RedirectReason | null {
   return null;
 }
 
-const CHAT = "the Kidney chat after you finish";
+const CHAT = "KidneyLearn after you finish";
 
 function conditionReply(reason: RedirectReason, c: ConditionWording): string {
   const opening = `This question is about whether ${c.asks}`;
